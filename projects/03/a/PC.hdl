@@ -20,10 +20,12 @@ CHIP PC {
 
     Inc16(in = ou, out = incremented);
 
-    Mux16(a = ou, b = incremented, sel = inc, out = case34);
-    Mux16(a = case34, b = in, sel = load, out = case234);
+    Mux16(a = incremented, b = in, sel = load, out = case234);
     Mux16(a = case234, b = false, sel = reset, out = dffin);
 
-    Register(in= dffin, load = true, out = ou, out = out);
+    Or(a = load, b = inc, out = li);
+    Or(a = li, b = reset, out = lir);
+
+    Register(in= dffin, load = lir, out = ou, out = out);
 
 }

@@ -3,11 +3,86 @@
 #include <regex>
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <bitset>
 
 using namespace std;
 
+string getComputationBits(string expression) {
+    string a = (expression.find('M') != string::npos) ? "1" : "0";
+
+    string cBits;
+
+    if (expression == "0") {
+        cBits = "101010";
+    } else if (expression == "1") {
+        cBits = "111111";
+    } else if (expression == "-1") {
+        cBits = "111010";
+    } else if (expression == "D") {
+        cBits = "001100";
+    } else if (expression == "A" || expression == "M") {
+        cBits = "110000";
+    } else if (expression == "!D") {
+        cBits = "001101";
+    } else if (expression == "!A" || expression == "!M") {
+        cBits = "110001";
+    } else if (expression == "-D") {
+        cBits = "001111";
+    } else if (expression == "-A" || expression == "-M") {
+        cBits = "110011";
+    } else if (expression == "D+1" || expression == "1+D") {
+        cBits = "011111";
+    } else if (expression == "A+1" || expression == "M+1" || expression == "1+A" || expression == "1+M") {
+        cBits = "110111";
+    } else if (expression == "D-1") {
+        cBits = "001110";
+    } else if (expression == "A-1" || expression == "M-1") {
+        cBits = "110010";
+    } else if (expression == "D+A" || expression == "D+M" || expression == "A+D" || expression == "M+D") {
+        cBits = "000010";
+    } else if (expression == "D-A" || expression == "D-M") {
+        cBits = "010011";
+    } else if (expression == "A-D" || expression == "M-D") {
+        cBits = "000111";
+    } else if (expression == "D&A" || expression == "D&M" || expression == "A&D" || expression == "M&D") {
+        cBits = "000000";
+    } else if (expression == "D|A" || expression == "D|M" || expression == "A|D" || expression == "M|D") {
+        cBits = "010101";
+    } else {
+        cerr << "Invalid expression: " << expression << endl;
+    }
+
+    return (a + cBits);
+}
+
+string getJumpBits(string jump) {
+    if (jump == "null") {
+        return "000";
+    } else if (jump == "JGT") {
+        return "001";
+    } else if (jump == "JEQ") {
+        return "010";
+    } else if (jump == "JGE") {
+        return "011";
+    } else if (jump == "JLT") {
+        return "100";
+    } else if (jump == "JNE") {
+        return "101";
+    } else if (jump == "JLE") {
+        return "110";
+    } else if (jump == "JMP") {
+        return "111";
+    } else {
+        cerr << "Invalid jump: " << jump << endl;
+    }
+
+    return "000";
+}
+
 int main(int argc, char** argv) {
     
+    // PASS 1
     // make sure command is executed properly
     if (argc == 1) {
         cerr << "ERROR: Provide asm file as command line argument" << endl;
@@ -43,9 +118,9 @@ int main(int argc, char** argv) {
     if (asmFileContents.back() == '\n' || asmFileContents.back() == '\r') asmFileContents.erase(asmFileContents.end() - 1);
 
     // save cleaned asmFileContents into assemberOut.ir
-    ofstream outFile("assemblerOut.ir");
-    outFile << asmFileContents;
-    outFile.close();
+    ofstream irFile("assemblerOut.ir");
+    irFile << asmFileContents;
+    irFile.close();
     
     // populate symbolTable with standard symbols
     unordered_map<string, int> symbolTable;
@@ -103,10 +178,57 @@ int main(int argc, char** argv) {
         }
     }
 
-    // print symbolTable
-    for(unordered_map<string, int>::iterator i = symbolTable.begin(); i != symbolTable.end(); i++) {
-        cout << i->first << " " << i->second << endl;
+    // PASS 2
+    
+    asmStream.clear();
+    asmStream.seekg(0);
+    vector<string> instructions;
+
+    // convert assembly to machine code
+    for(string line; getline(asmStream, line); lineNumber++) {
+        if (line[0] == '(') continue;                       // label
+
+        string instruction;
+        if (line[0] == '@') {                               // A instruction
+            instruction += '0';
+            int address = symbolTable[line.substr(1)];
+            instruction += bitset<15>(address).to_string();
+        } else {                                            // C instruction
+            instruction += "111";
+
+            if (line.find('=') != string::npos) {           // command insturction
+                int index = line.find('=');
+                string LHS = line.substr(0, index);
+                string RHS = line.substr(index + 1);
+
+                string destination = "000";
+                if (LHS.find('A') != string::npos) destination[0] = '1';
+                if (LHS.find('D') != string::npos) destination[1] = '1';
+                if (LHS.find('M') != string::npos) destination[2] = '1';
+
+                instruction += getComputationBits(RHS);
+                instruction += destination;
+                instruction += "000";
+            } else if (line.find(';') != string::npos) {    // jump insturction
+                int index = line.find(';');
+                string LHS = line.substr(0, index);
+                string RHS = line.substr(index + 1);
+                instruction += getComputationBits(LHS);
+                instruction += "000";
+                instruction += getJumpBits(RHS);
+            } else {
+                cerr << "Invalid instruction: " << line << endl;
+            }
+        }
+        instructions.push_back(instruction);
     }
+
+    // save machine code into assembler.out
+    ofstream outFile("assembler.out");
+    for(vector<string>::iterator s = instructions.begin(); s != instructions.end(); s++) {
+        outFile << *s << endl;
+    }
+    outFile.close();
 
     return 0;
 }

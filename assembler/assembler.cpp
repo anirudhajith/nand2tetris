@@ -154,10 +154,12 @@ int main(int argc, char** argv) {
     int variableCount = 0;
     int lineNumber = 0;
 
-    for(string line; getline(asmStream, line); lineNumber++) {
+    for(string line; getline(asmStream, line);) {
         if (line[0] == '(') {
             string label = line.substr(1, line.size() - 2);
             symbolTable[label] = lineNumber;
+        } else {
+            lineNumber++;
         }
     }
 
@@ -191,7 +193,14 @@ int main(int argc, char** argv) {
         string instruction;
         if (line[0] == '@') {                               // A instruction
             instruction += '0';
-            int address = symbolTable[line.substr(1)];
+            int address;
+
+            if (symbolTable.count(line.substr(1)) > 0) {
+                address = symbolTable[line.substr(1)];
+            } else {
+                address = atoi(line.substr(1).c_str());
+            }
+
             instruction += bitset<15>(address).to_string();
         } else {                                            // C instruction
             instruction += "111";

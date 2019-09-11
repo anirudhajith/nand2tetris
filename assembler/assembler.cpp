@@ -226,14 +226,15 @@ int main(int argc, char** argv) {
                 instruction += "000";
                 instruction += getJumpBits(RHS);
             } else {
-                cerr << "Invalid instruction: " << line << endl;
+                cerr << "ERROR: Invalid instruction: " << line << endl;
+                return 1;
             }
         }
         instructions.push_back(instruction);
     }
 
     // save machine code into assembler.out
-    ofstream outFile("assembler.out");
+    ofstream outFile("assembler.hack");
     for(vector<string>::iterator s = instructions.begin(); s != instructions.end(); s++) {
         outFile << *s << endl;
     }

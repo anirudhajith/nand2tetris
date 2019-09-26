@@ -125,11 +125,81 @@ string getAssembly(string vmInstruction) {
                     "M=M+1\n"
                     "A=M-1\n"
                     "M=D\n";
+        } else if (vmInstruction.substr(5,8) == "pointer ") {
+            if (vmInstruction.substr(13) == "0") {
+                return "@THIS\n"
+                        "D=M\n"
+                        "@SP\n"
+                        "M=M+1\n"
+                        "A=M-1\n"
+                        "M=D\n";
+            } else if (vmInstruction.substr(13) == "1") {
+                return "@THAT\n"
+                        "D=M\n"
+                        "@SP\n"
+                        "M=M+1\n"
+                        "A=M-1\n"
+                        "M=D\n";
+            }
         }
     } else if (vmInstruction.substr(0,4) == "pop ") {
-
+        if (vmInstruction.substr(4,6) == "local ") {
+            return "@LCL\n"
+                    "D=M\n"
+                    "@" + vmInstruction.substr(10) + "\n"
+                    "DA=A+D\n"
+                    "@SP\n"
+                    "AM=M-1\n"
+                    "D=D+M\n"
+                    "A=D-M\n"
+                    "M=D-A\n";
+        } else if (vmInstruction.substr(4,9) == "argument ") {
+            return "@ARG\n"
+                    "D=M\n"
+                    "@" + vmInstruction.substr(13) + "\n"
+                    "DA=A+D\n"
+                    "@SP\n"
+                    "AM=M-1\n"
+                    "D=D+M\n"
+                    "A=D-M\n"
+                    "M=D-A\n";
+        } else if (vmInstruction.substr(4,5) == "this ") {
+            return "@THIS\n"
+                    "D=M\n"
+                    "@" + vmInstruction.substr(9) + "\n"
+                    "DA=A+D\n"
+                    "@SP\n"
+                    "AM=M-1\n"
+                    "D=D+M\n"
+                    "A=D-M\n"
+                    "M=D-A\n";
+        } else if (vmInstruction.substr(4,5) == "that ") {
+            return "@THAT\n"
+                    "D=M\n"
+                    "@" + vmInstruction.substr(9) + "\n"
+                    "DA=A+D\n"
+                    "@SP\n"
+                    "AM=M-1\n"
+                    "D=D+M\n"
+                    "A=D-M\n"
+                    "M=D-A\n";
+        } else if (vmInstruction.substr(4,8) == "pointer ") {
+            if (vmInstruction.substr(12) == "0") {
+                return "@SP\n"
+                        "AM=M-1\n"
+                        "D=M\n"
+                        "@THIS\n"
+                        "M=D\n";
+            } else if (vmInstruction.substr(12) == "1") {
+                return "@SP\n"
+                        "AM=M-1\n"
+                        "D=M\n"
+                        "@THAT\n"
+                        "M=D\n";
+            }
+        }
     } else {
-        return "ERROR: UNKNOWN INSTRUCTION\n";
+        return "ERROR: UNKNOWN INSTRUCTION";
     }
 }
 

@@ -7,6 +7,7 @@ using namespace std;
 
 string getAssembly(string vmInstruction) {
     static int instuctionIndex = 0;
+    instuctionIndex++;
 
     if (vmInstruction == "add") {
         return "@SP\n"
@@ -52,6 +53,30 @@ string getAssembly(string vmInstruction) {
                 "A=M-1\n"
                 "M=0\n"
                 "(IFEQ" + to_string(instuctionIndex) + ")\n";
+    } else if (vmInstruction == "lt") {
+        return "@SP\n"
+                "AM=M-1\n"
+                "D=M+1\n"
+                "A=A-1\n"
+                "DM=M-D\n"
+                "@IFLT" + to_string(instuctionIndex) + "\n"
+                "D;JLT\n"
+                "@SP\n"
+                "A=M-1\n"
+                "M=0\n"
+                "(IFLT" + to_string(instuctionIndex) + ")\n";
+    } else if (vmInstruction == "gt") {
+        return "@SP\n"
+                "AM=M-1\n"
+                "D=M+1\n"
+                "A=A-1\n"
+                "DM=M-D\n"
+                "@IFGT" + to_string(instuctionIndex) + "\n"
+                "D;JEQ\n"
+                "@SP\n"
+                "A=M-1\n"
+                "M=0\n"
+                "(IFGT" + to_string(instuctionIndex) + ")\n";
     } else if (vmInstruction.substr(0,5) == "push ") {
         if (vmInstruction.substr(5,6) == "local ") {
             return "@LCL\n"
@@ -106,7 +131,6 @@ string getAssembly(string vmInstruction) {
     } else {
         return "ERROR: UNKNOWN INSTRUCTION\n";
     }
-    instuctionIndex++;
 }
 
 int main(int argc, char** argv) {

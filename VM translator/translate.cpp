@@ -46,7 +46,7 @@ string getAssembly(string vmInstruction) {
                 "AM=M-1\n"
                 "D=M+1\n"
                 "A=A-1\n"
-                "DM=M-D\n"
+                "MD=M-D\n"
                 "@IFEQ" + to_string(instuctionIndex) + "\n"
                 "D;JEQ\n"
                 "@SP\n"
@@ -56,27 +56,29 @@ string getAssembly(string vmInstruction) {
     } else if (vmInstruction == "lt") {
         return "@SP\n"
                 "AM=M-1\n"
-                "D=M+1\n"
+                "D=M\n"
                 "A=A-1\n"
-                "DM=M-D\n"
-                "@IFLT" + to_string(instuctionIndex) + "\n"
-                "D;JLT\n"
+                "D=M-D\n"
+                "M=0\n"
+                "@IFNLT" + to_string(instuctionIndex) + "\n"
+                "D;JGE\n"
                 "@SP\n"
                 "A=M-1\n"
-                "M=0\n"
-                "(IFLT" + to_string(instuctionIndex) + ")\n";
+                "M=-1\n"
+                "(IFNLT" + to_string(instuctionIndex) + ")\n";
     } else if (vmInstruction == "gt") {
         return "@SP\n"
                 "AM=M-1\n"
-                "D=M+1\n"
+                "D=M\n"
                 "A=A-1\n"
-                "DM=M-D\n"
-                "@IFGT" + to_string(instuctionIndex) + "\n"
-                "D;JEQ\n"
+                "D=M-D\n"
+                "M=0\n"
+                "@IFNGT" + to_string(instuctionIndex) + "\n"
+                "D;JLE\n"
                 "@SP\n"
                 "A=M-1\n"
-                "M=0\n"
-                "(IFGT" + to_string(instuctionIndex) + ")\n";
+                "M=-1\n"
+                "(IFNGT" + to_string(instuctionIndex) + ")\n";
     } else if (vmInstruction.substr(0,5) == "push ") {
         if (vmInstruction.substr(5,6) == "local ") {
             return "@LCL\n"

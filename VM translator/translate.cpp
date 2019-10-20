@@ -5,6 +5,10 @@
 
 using namespace std;
 
+inline string getClassname() {
+    return "Xxx";
+}
+
 string getAssembly(string vmInstruction) {
     static int instuctionIndex = 0;
     instuctionIndex++;
@@ -143,13 +147,34 @@ string getAssembly(string vmInstruction) {
                         "A=M-1\n"
                         "M=D\n";
             }
+        } else if (vmInstruction.substr(5,5) == "temp ") {
+            int index = stoi(vmInstruction.substr(10));
+            if (index > 0 && index < 8) {
+                return "@" + to_string(index + 5) + "\n"
+                        "D=M\n"
+                        "@SP\n"
+                        "M=M+1\n"
+                        "A=M-1\n"
+                        "M=D\n";
+            } else {
+                return "ERROR: UNKNOWN INSTRUCTION";
+            }
+        } else if (vmInstruction.substr(5,7) == "static ") {
+            return "@" + getClassname() + "." + vmInstruction.substr(12) + "\n"
+                    "D=M\n"
+                    "@SP\n"
+                    "M=M+1\n"
+                    "A=M-1\n"
+                    "M=D\n";
+        } else {
+            return "ERROR: UNKNOWN INSTRUCTION";
         }
     } else if (vmInstruction.substr(0,4) == "pop ") {
         if (vmInstruction.substr(4,6) == "local ") {
             return "@LCL\n"
                     "D=M\n"
                     "@" + vmInstruction.substr(10) + "\n"
-                    "DA=A+D\n"
+                    "D=A+D\n"
                     "@SP\n"
                     "AM=M-1\n"
                     "D=D+M\n"
@@ -159,7 +184,7 @@ string getAssembly(string vmInstruction) {
             return "@ARG\n"
                     "D=M\n"
                     "@" + vmInstruction.substr(13) + "\n"
-                    "DA=A+D\n"
+                    "D=A+D\n"
                     "@SP\n"
                     "AM=M-1\n"
                     "D=D+M\n"
@@ -169,7 +194,7 @@ string getAssembly(string vmInstruction) {
             return "@THIS\n"
                     "D=M\n"
                     "@" + vmInstruction.substr(9) + "\n"
-                    "DA=A+D\n"
+                    "D=A+D\n"
                     "@SP\n"
                     "AM=M-1\n"
                     "D=D+M\n"
@@ -179,7 +204,7 @@ string getAssembly(string vmInstruction) {
             return "@THAT\n"
                     "D=M\n"
                     "@" + vmInstruction.substr(9) + "\n"
-                    "DA=A+D\n"
+                    "D=A+D\n"
                     "@SP\n"
                     "AM=M-1\n"
                     "D=D+M\n"
@@ -199,6 +224,25 @@ string getAssembly(string vmInstruction) {
                         "@THAT\n"
                         "M=D\n";
             }
+        } else if (vmInstruction.substr(4,5) == "temp ") {
+            int index = stoi(vmInstruction.substr(9));
+            if (index > 0 && index < 8) {
+                return  "@" + to_string(index + 5) + "\n"
+                        "D=A\n"
+                        "@SP\n"
+                        "AM=M-1\n"
+                        "D=D+M\n"
+                        "A=D-M\n"
+                        "M=D-A\n";
+            } else {
+                return "ERROR: UNKNOWN INSTRUCTION";
+            }
+        } else if (vmInstruction.substr(4,7) == "static ") {
+            return "@SP\n"
+                    "AM=M-1\n"
+                    "D=M\n"
+                    "@" + getClassname() + "." + vmInstruction.substr(11) + "\n"
+                    "M=D\n";
         }
     } else {
         return "ERROR: UNKNOWN INSTRUCTION";

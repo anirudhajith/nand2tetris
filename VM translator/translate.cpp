@@ -44,7 +44,7 @@ string getAssembly(string vmInstruction) {
     } else if (vmInstruction == "neg") {
         return "@SP\n"
                 "A=M-1\n"
-                "M=!M\n";
+                "M=-M\n";
     } else if (vmInstruction == "eq") {
         return "@SP\n"
                 "AM=M-1\n"
@@ -52,7 +52,7 @@ string getAssembly(string vmInstruction) {
                 "A=A-1\n"
                 "MD=M-D\n"
                 "@IFEQ" + to_string(instuctionIndex) + "\n"
-                "D;JEQ\n"
+                "D+1;JEQ\n"
                 "@SP\n"
                 "A=M-1\n"
                 "M=0\n"

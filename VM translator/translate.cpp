@@ -5,9 +5,8 @@
 
 using namespace std;
 
-inline string getClassname() {
-    return "Xxx";
-}
+string functionName = "NOFUNC";
+string className = "NOCLASS";
 
 string getAssembly(string vmInstruction) {
     static int instuctionIndex = 0;
@@ -51,12 +50,12 @@ string getAssembly(string vmInstruction) {
                 "D=M+1\n"
                 "A=A-1\n"
                 "MD=M-D\n"
-                "@IFEQ" + to_string(instuctionIndex) + "\n"
+                "@IFEQ." + className + "." + to_string(instuctionIndex) + "\n"
                 "D+1;JEQ\n"
                 "@SP\n"
                 "A=M-1\n"
                 "M=0\n"
-                "(IFEQ" + to_string(instuctionIndex) + ")\n";
+                "(IFEQ." + className + "." + to_string(instuctionIndex) + ")\n";
     } else if (vmInstruction == "lt") {
         return "@SP\n"
                 "AM=M-1\n"
@@ -64,12 +63,12 @@ string getAssembly(string vmInstruction) {
                 "A=A-1\n"
                 "D=M-D\n"
                 "M=0\n"
-                "@IFNLT" + to_string(instuctionIndex) + "\n"
+                "@IFNLT." + className + "." + to_string(instuctionIndex) + "\n"
                 "D;JGE\n"
                 "@SP\n"
                 "A=M-1\n"
                 "M=-1\n"
-                "(IFNLT" + to_string(instuctionIndex) + ")\n";
+                "(IFNLT." + className + "." + to_string(instuctionIndex) + ")\n";
     } else if (vmInstruction == "gt") {
         return "@SP\n"
                 "AM=M-1\n"
@@ -77,12 +76,12 @@ string getAssembly(string vmInstruction) {
                 "A=A-1\n"
                 "D=M-D\n"
                 "M=0\n"
-                "@IFNGT" + to_string(instuctionIndex) + "\n"
+                "@IFNGT." + className + "." + to_string(instuctionIndex) + "\n"
                 "D;JLE\n"
                 "@SP\n"
                 "A=M-1\n"
                 "M=-1\n"
-                "(IFNGT" + to_string(instuctionIndex) + ")\n";
+                "(IFNGT." + className + "." + to_string(instuctionIndex) + ")\n";
     } else if (vmInstruction.substr(0,5) == "push ") {
         if (vmInstruction.substr(5,6) == "local ") {
             return "@LCL\n"
@@ -149,7 +148,7 @@ string getAssembly(string vmInstruction) {
             }
         } else if (vmInstruction.substr(5,5) == "temp ") {
             int index = stoi(vmInstruction.substr(10));
-            if (index > 0 && index < 8) {
+            if (index >= 0 && index < 8) {
                 return "@" + to_string(index + 5) + "\n"
                         "D=M\n"
                         "@SP\n"
@@ -160,7 +159,8 @@ string getAssembly(string vmInstruction) {
                 return "ERROR: UNKNOWN INSTRUCTION";
             }
         } else if (vmInstruction.substr(5,7) == "static ") {
-            return "@" + getClassname() + "." + vmInstruction.substr(12) + "\n"
+            string varName = vmInstruction.substr(12);
+            return "@" + className + "." + varName + "\n"
                     "D=M\n"
                     "@SP\n"
                     "M=M+1\n"
@@ -226,7 +226,7 @@ string getAssembly(string vmInstruction) {
             }
         } else if (vmInstruction.substr(4,5) == "temp ") {
             int index = stoi(vmInstruction.substr(9));
-            if (index > 0 && index < 8) {
+            if (index >= 0 && index < 8) {
                 return  "@" + to_string(index + 5) + "\n"
                         "D=A\n"
                         "@SP\n"
@@ -238,37 +238,38 @@ string getAssembly(string vmInstruction) {
                 return "ERROR: UNKNOWN INSTRUCTION";
             }
         } else if (vmInstruction.substr(4,7) == "static ") {
+            string varName = vmInstruction.substr(11);
             return "@SP\n"
                     "AM=M-1\n"
                     "D=M\n"
-                    "@" + getClassname() + "." + vmInstruction.substr(11) + "\n"
+                    "@" + className + "." + varName + "\n"
                     "M=D\n";
         }
     } else if (vmInstruction.substr(0,9) == "function ") {
         int functionNameLength = vmInstruction.substr(9).find(' ');
-        string functionName = vmInstruction.substr(9, functionNameLength);
+        functionName = vmInstruction.substr(9, functionNameLength);
         string numLocalVars = vmInstruction.substr(9 + functionNameLength);
 
-        return "(" + getClassname() + "." + functionName + "\n"
+        return "(" + functionName + ")\n"
                 "@" + numLocalVars + "\n"
                 "D=A\n"
-                "(" + getClassname() + "." + functionName + ".localLoop)\n"
-                "@" + getClassname() + "." + functionName + ".localEnd\n"
+                "(" + functionName + ".localLoop)\n"
+                "@" + functionName + ".localEnd\n"
                 "D;JLE\n"
                 "@SP\n"
                 "M=M+1\n"
                 "A=M-1\n"
                 "M=0\n"
                 "D=D-1\n"
-                "@" + getClassname() + "." + functionName + ".localLoop\n"
+                "@" + functionName + ".localLoop\n"
                 "0;JMP\n"
-                "(" + getClassname() + "." + functionName + ".localEnd)\n";
+                "(" + functionName + ".localEnd)\n";
     } else if (vmInstruction.substr(0,5) == "call ") {
         int functionNameLength = vmInstruction.substr(5).find(' ');
-        string functionName = vmInstruction.substr(5, functionNameLength);
+        string calledFunctionName = vmInstruction.substr(5, functionNameLength);
         string numArguments = vmInstruction.substr(5 + functionNameLength);
 
-        return "@" + getClassname() + ".ret." + to_string(instuctionIndex) + "\n" 
+        return "@" + className + ".return." + to_string(instuctionIndex) + "\n" 
                 "D=A\n"
                 "@SP\n"
                 "M=M+1\n"
@@ -310,9 +311,9 @@ string getAssembly(string vmInstruction) {
                 "D=M\n"
                 "@LCL\n"
                 "M=D\n"
-                "@" + getClassname() + "." + functionName + "\n"
+                "@" + calledFunctionName + "\n"
                 "0;JMP\n"
-                "(" + getClassname() + ".return." + to_string(instuctionIndex) + ")\n";
+                "(" + className + ".return." + to_string(instuctionIndex) + ")\n";
 
     } else if (vmInstruction == "return") {
         return "@LCL\n"
@@ -322,7 +323,7 @@ string getAssembly(string vmInstruction) {
                 "@5\n"
                 "D=A\n"
                 "@FRAME\n"
-                "A=A-D\n"
+                "A=M-D\n"
                 "D=M\n"
                 "@RET\n"
                 "M=D\n"
@@ -336,33 +337,48 @@ string getAssembly(string vmInstruction) {
                 "@SP\n"
                 "M=D+1\n"
                 "@FRAME\n"
-                "A=A-1\n"
+                "A=M-1\n"
                 "D=M\n"
                 "@THAT\n"
                 "M=D\n"
                 "@2\n"
                 "D=A\n"
                 "@FRAME\n"
-                "A=A-D\n"
+                "A=M-D\n"
                 "D=M\n"
                 "@THIS\n"
                 "M=D\n"
                 "@3\n"
                 "D=A\n"
                 "@FRAME\n"
-                "A=A-D\n"
+                "A=M-D\n"
                 "D=M\n"
                 "@ARG\n"
                 "M=D\n"
                 "@4\n"
                 "D=A\n"
                 "@FRAME\n"
-                "A=A-D\n"
+                "A=M-D\n"
                 "D=M\n"
                 "@LCL\n"
                 "M=D\n"
                 "@RET\n"
+                "A=M\n"
                 "0;JMP\n";
+    } else if (vmInstruction.substr(0,6) == "label ") {
+        string labelName = vmInstruction.substr(6);
+        return "(" + functionName + "$" + labelName + ")\n";
+    } else if (vmInstruction.substr(0,5) == "goto ") {
+        string labelName = vmInstruction.substr(5);
+        return "@" + functionName + "$" + labelName + "\n"
+                "0;JMP\n";
+    } else if (vmInstruction.substr(0,8) == "if-goto ") {
+        string labelName = vmInstruction.substr(8);
+        return "@SP\n"
+                "AM=M-1\n"
+                "D=M\n"
+                "@" + functionName + "$" + labelName + "\n"
+                "D;JNE\n";
     } else {
         return "ERROR: UNKNOWN INSTRUCTION";
     }
@@ -380,6 +396,7 @@ int main(int argc, char** argv) {
     }
 
     string filename = argv[1];
+    className = filename.substr(filename.find_last_of("/") + 1,filename.length() - 4 - filename.find_last_of("/"));
     string vmFileContents;
     
     // read file contents into vmFileContents
@@ -394,11 +411,13 @@ int main(int argc, char** argv) {
     // remove all comments, whitespace, multi-newlines from vmFileContents
     regex anyComment("(\\/\\/.*|\\/\\*[\\s\\S]*?\\*\\/)");
     regex newline("[\\r\\n]+");
-    //regex whitespace("[     ]");
+    regex whitespaceNewline(" \\n");
+    regex whitespace("[ ]+");
 
     vmFileContents = regex_replace(vmFileContents, anyComment, "");
-    //vmFileContents = regex_replace(vmFileContents, whitespace, "");
+    vmFileContents = regex_replace(vmFileContents, whitespace, " ");
     vmFileContents = regex_replace(vmFileContents, newline, "\n");
+    vmFileContents = regex_replace(vmFileContents, whitespaceNewline, "\n");
     if (vmFileContents[0] == '\n' || vmFileContents[0] == '\r') vmFileContents.erase(vmFileContents.begin());
     if (vmFileContents[0] == '\n' || vmFileContents[0] == '\r') vmFileContents.erase(vmFileContents.begin());
     if (vmFileContents.back() == '\n' || vmFileContents.back() == '\r') vmFileContents.erase(vmFileContents.end() - 1);
@@ -411,13 +430,13 @@ int main(int argc, char** argv) {
         if (asmString != "ERROR: UNKNOWN INSTRUCTION") {
             asmStream << asmString;
         } else {
-            cerr << "ERROR: UNKNOWN INSTRUCTION" << endl << line << endl;
+            cerr << "ERROR: UNKNOWN INSTRUCTION" << endl << "'" << line << "'" << endl;
             return 1;
         }
     }
-
+    
     // save machine code into assembler.out
-    ofstream outFile("out.asm");
+    ofstream outFile(filename.substr(0,filename.find(".vm")) + ".asm");
     outFile << asmStream.rdbuf();
     outFile.close();
 

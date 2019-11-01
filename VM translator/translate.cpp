@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    // save machine code into assembler.out
+    // save machine code into asm file
     ofstream outFile(filename.substr(0,filename.find(".vm")) + ".asm");
     outFile << asmStream.rdbuf();
     outFile.close();

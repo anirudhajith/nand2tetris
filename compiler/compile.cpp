@@ -163,12 +163,6 @@ class CompilationEngine {
             writeError("Syntax error: identifier expected.");
         }
 
-        if (getTokenType() == "identifier") {
-            dump();
-        } else {
-            writeError("Syntax error: identifier expected.");
-        }
-
         while (getTokenType() == "symbol" && getTokenContent() == ",") {
             dump();
             if (getTokenType() == "identifier") {
@@ -198,7 +192,7 @@ class CompilationEngine {
             writeError("Syntax error: function type expected.");
         }
 
-        if (getTokenType() == "keyword" && (getTokenContent() == "void" || isType())) {
+        if ((getTokenType() == "keyword" && getTokenContent() == "void") || isType()) {
             dump();
         } else {
             writeError("Syntax error: return type expected.");
@@ -407,15 +401,15 @@ class CompilationEngine {
 
         string content = getTokenContent();
         if (getTokenType() == "integerConstant") {
-            compileTerm();
+            compileExpression();
         } else if (getTokenType() == "stringConstant") {
-            compileTerm();
+            compileExpression();
         } else if (getTokenType() == "keyword" && (content == "true" || content == "false" || content == "null" || content == "this")) {
-            compileTerm();
+            compileExpression();
         } else if (getTokenType() == "identifier") {
-            compileTerm();
+            compileExpression();
         } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
-            compileTerm();
+            compileExpression();
         }
         
 
@@ -615,6 +609,9 @@ class CompilationEngine {
             } else {
                 writeError("Syntax error: ')' expected.");
             }
+        } else if (isUnaryOp()){
+            dump();
+            compileTerm();
         } else {
             writeError("Syntax error: term expected.");
         }

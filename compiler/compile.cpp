@@ -23,7 +23,7 @@ class CompilationEngine {
     string getTokenContent() {
         string token = *currentToken;
         string tokenType = getTokenType(token);
-        return token.substr(tokenType.length() + 2, token.length() - 2 * tokenType.length() - 5);
+        return token.substr(tokenType.length() + 3, token.length() - 2 * tokenType.length() - 7);
     }
 
     string getTokenType(string token) {
@@ -32,7 +32,7 @@ class CompilationEngine {
 
     string getTokenContent(string token) {
         string tokenType = getTokenType(token);
-        return token.substr(tokenType.length() + 2, token.length() - 2 * tokenType.length() - 5);
+        return token.substr(tokenType.length() + 3, token.length() - 2 * tokenType.length() - 6);
     }
 
     string generateSpaces() {
@@ -49,6 +49,16 @@ class CompilationEngine {
         return (getTokenType() == "keyword" && (content == "constructor" || content == "function" || content == "method"));
     }
 
+    bool isOp() {
+        string content = getTokenContent();
+        return (getTokenType() == "symbol" && (content == "+" || content == "-" || content == "*" || content == "/" || content == "&amp;" || content == "|" || content == "&lt;" || content == "&gt;" || content == "="));
+    }
+
+    bool isUnaryOp() {
+        string content = getTokenContent();
+        return (getTokenType() == "symbol" && (content == "~" || content == "-"));
+    }
+
     void incrementSpaces() {
         numSpaces += 2;
     }
@@ -62,25 +72,39 @@ class CompilationEngine {
     }
 
     void dump() {
-        xmlDump << *currentToken << "\n";
+        xmlDump << generateSpaces() << *currentToken << "\n";
         currentToken++;
     }
 
     void writeError(string error) {
+        cout << "Failed at " << "'" <<  *currentToken << "'" << endl << "'" << getTokenType() << "'" << endl << "'" <<  getTokenContent()  << "'" << endl << endl;
+        cout << xmlDump.str() << endl;
         ofstream err(errorFile);
         err << error << endl;
         err.close();
         exit(EXIT_FAILURE);
     }
 
+    void writeAnalysis() {
+        ofstream anz(anzFile);
+        anz << xmlDump.str();
+        anz.close();
+    }
+
     public:
-    CompilationEngine(stringstream tokenized) {
+    CompilationEngine(stringstream &tokenized, string anzPath, string errPath) {
         string token;
         while(getline(tokenized, token, '\n')) {
             tokens.push_back(token);
         }
-        currentToken = tokens.begin();
+        currentToken = ++tokens.begin();
         numSpaces = 0;
+
+        anzFile = anzPath;
+        errorFile = errPath;
+        compileClass();
+
+        writeAnalysis();
     }
 
     void compileClass() {
@@ -164,17 +188,62 @@ class CompilationEngine {
         dump("</classVarDec>");
     }
 
-    void compileSubroutine() {}
-
-    void compileSubroutineBody() {}
-    
-    void compileParameterList() {
-        dump("<parameterList>");
+    void compileSubroutine() {
+        dump("<subroutineDec>");
         incrementSpaces();
 
-        if (isType()) {
+        if (isFunctionType()) {
             dump();
-            
+        } else {
+            writeError("Syntax error: function type expected.");
+        }
+
+        if (getTokenType() == "keyword" && (getTokenContent() == "void" || isType())) {
+            dump();
+        } else {
+            writeError("Syntax error: return type expected.");
+        }
+
+        if (getTokenType() == "identifier") {
+            dump();
+        } else {
+            writeError("Syntax error: identifier expected.");
+        }
+
+        if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            dump();
+        } else {
+            writeError("Syntax error: '(' expected.");
+        }
+
+        compileParameterList();
+
+        if (getTokenType() == "symbol" && getTokenContent() == ")") {
+            dump();
+        } else {
+            writeError("Syntax error: ')' expected.");
+        }
+
+        dump("<subroutineBody>");
+        incrementSpaces();
+
+        if (getTokenType() == "symbol" && getTokenContent() == "{") {
+            dump();
+        } else {
+            writeError("Syntax error: '{' expected.");
+        }
+
+        while (getTokenType() == "keyword" && getTokenContent() == "var") {
+            dump("<varDec>");
+            incrementSpaces();
+
+            dump();
+            if (isType()) {
+                dump();
+            } else {
+                writeError("Syntax error: type expected.");
+            }
+
             if (getTokenType() == "identifier") {
                 dump();
             } else {
@@ -189,6 +258,62 @@ class CompilationEngine {
                     writeError("Syntax error: identifier expected.");
                 }
             }
+
+            if (getTokenType() == "symbol" && getTokenContent() == ";") {
+                dump();
+            } else {
+                writeError("Syntax error: ';' expected.");
+            }
+
+            decrementSpaces();
+            dump("</varDec>");
+        }
+
+        compileStatements();
+
+        if (getTokenType() == "symbol" && getTokenContent() == "}") {
+            dump();
+        } else {
+            writeError("Syntax error: '}' expected.");
+        }
+
+        decrementSpaces();
+        dump("</subroutineBody>");
+
+        decrementSpaces();
+        dump("</subroutineDec>");
+    }
+    
+    void compileParameterList() { 
+        dump("<parameterList>");
+        incrementSpaces();
+
+        if (isType()) {
+            dump();
+            
+            if (getTokenType() == "identifier") {
+                dump();
+            } else {
+                writeError("Syntax error: identifier expected.");
+            }
+
+            while (getTokenType() == "symbol" && getTokenContent() == ",") {
+                dump();
+                
+                if (isType()) {
+                    dump();
+                } else {
+                    writeError("Syntax error: type expected.");
+                }
+                
+                if (getTokenType() == "identifier") {
+                    dump();
+                } else {
+                    writeError("Syntax error: identifier expected.");
+                }
+            }
+        } else if (getTokenType() != "symbol" || getTokenContent() != ")") {
+            writeError("Synax error: parameterList expected.");
         }
 
         decrementSpaces();
@@ -196,6 +321,9 @@ class CompilationEngine {
     }
 
     void compileStatements() {
+        dump("<statements>");
+        incrementSpaces();
+
         while(getTokenType() == "keyword") {
             string content = getTokenContent();
             if (content == "let") {
@@ -212,33 +340,324 @@ class CompilationEngine {
                 writeError("Syntax error: statement expected.");
             }
         }
+
+        decrementSpaces();
+        dump("</statements>");
     }
 
-    void compileIfStatement() {}
+    void compileIfStatement() {
+        dump("<ifStatement>");
+        incrementSpaces();
+        dump();
+
+        if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            dump();
+        } else {
+            writeError("Syntax error: '(' expected.");
+        }
+
+        compileExpression();
+
+        if (getTokenType() == "symbol" && getTokenContent() == ")") {
+            dump();
+        } else {
+            writeError("Syntax error: ')' expected.");
+        }
+
+        if (getTokenType() == "symbol" && getTokenContent() == "{") {
+            dump();
+        } else {
+            writeError("Syntax error: '{' expected.");
+        }
+
+        compileStatements();
+
+        if (getTokenType() == "symbol" && getTokenContent() == "}") {
+            dump();
+        } else {
+            writeError("Syntax error: '}' expected.");
+        }
+
+        if (getTokenType() == "keyword" && getTokenContent() == "else") {
+            dump();
+
+            if (getTokenType() == "symbol" && getTokenContent() == "{") {
+                dump();
+            } else {
+                writeError("Syntax error: '{' expected.");
+            }
+
+            compileStatements();
+
+            if (getTokenType() == "symbol" && getTokenContent() == "}") {
+                dump();
+            } else {
+                writeError("Syntax error: '}' expected.");
+            }
+        }
+
+        decrementSpaces();
+        dump("</ifStatement>");
+    }
     
     void compileReturnStatement() {
         dump("<returnStatement>");
         incrementSpaces();
         dump();
 
-        if (getTokenType() == "identifier") {
-            dump();
+        string content = getTokenContent();
+        if (getTokenType() == "integerConstant") {
+            compileTerm();
+        } else if (getTokenType() == "stringConstant") {
+            compileTerm();
+        } else if (getTokenType() == "keyword" && (content == "true" || content == "false" || content == "null" || content == "this")) {
+            compileTerm();
+        } else if (getTokenType() == "identifier") {
+            compileTerm();
+        } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            compileTerm();
         }
+        
 
         if (getTokenType() == "symbol" && getTokenContent() == ";") {
             dump();
         } else {
             writeError("Syntax error: ';' expected.");
         }
+
+        decrementSpaces();
+        dump("</returnStatement>");
     }
 
-    void compileWhileStatement() {}
-    void compileDoStatement() {}
-    void compileLetStatement() {}
-    void compileExpression() {}
-    int compileExpressionList() {}
-    void compileTerm() {}
+    void compileWhileStatement() {
+        dump("<whileStatement>");
+        incrementSpaces();
+        dump();
 
+        if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            dump();
+        } else {
+            writeError("Syntax error: '(' expected.");
+        }
+
+        compileExpression();
+
+        if (getTokenType() == "symbol" && getTokenContent() == ")") {
+            dump();
+        } else {
+            writeError("Syntax error: ')' expected.");
+        }
+
+        if (getTokenType() == "symbol" && getTokenContent() == "{") {
+            dump();
+        } else {
+            writeError("Syntax error: '{' expected.");
+        }
+
+        compileStatements();
+
+        if (getTokenType() == "symbol" && getTokenContent() == "}") {
+            dump();
+        } else {
+            writeError("Syntax error: '}' expected.");
+        }
+
+        decrementSpaces();
+        dump("</whileStatement>");
+    }
+
+    void compileDoStatement() {
+        dump("<doStatement>");
+        incrementSpaces();
+        dump();
+
+        compileSubroutineCall();
+
+        if (getTokenType() == "symbol" && getTokenContent() == ";") {
+            dump();
+        } else {
+            writeError("Syntax error: ';' expected.");
+        }
+
+        decrementSpaces();
+        dump("</doStatement>");
+    }
+
+    void compileLetStatement() {
+        dump("<letStatement>");
+        incrementSpaces();
+        dump();
+
+        if (getTokenType() == "identifier") {
+            dump();
+        } else {
+            writeError("Syntax error: identifier expected.");
+        }
+
+        if (getTokenType() == "symbol" && getTokenContent() == "[") {
+            dump();
+            compileExpression();
+            if (getTokenType() == "symbol" && getTokenContent() == "]") {
+                dump();
+            } else {
+                writeError("Syntax error: ']' expected.");
+            }
+        }
+
+        if (getTokenType() == "symbol" && getTokenContent() == "=") {
+            dump();
+        } else {
+            writeError("Syntax error: '=' expected.");
+        }
+
+        compileExpression();
+
+        if (getTokenType() == "symbol" && getTokenContent() == ";") {
+            dump();
+        } else {
+            writeError("Syntax error: ';' expected.");
+        }
+
+        decrementSpaces();
+        dump("</letStatement>");
+    }
+
+    void compileExpression() {
+        dump("<expression>");
+        incrementSpaces();
+
+        compileTerm();
+
+        while (isOp()) {
+            dump();
+            compileTerm();
+        }
+
+
+        decrementSpaces();
+        dump("</expression>");
+    }
+
+    int compileExpressionList() {
+        dump("<expressionList>");
+        incrementSpaces();
+        
+        string content = getTokenContent();
+        int numExpressions = 0;
+        if (getTokenType() == "integerConstant") {
+            numExpressions++;
+            compileExpression();
+        } else if (getTokenType() == "stringConstant") {
+            numExpressions++;
+            compileExpression();
+        } else if (getTokenType() == "keyword" && (content == "true" || content == "false" || content == "null" || content == "this")) {
+            numExpressions++;
+            compileExpression();
+        } else if (getTokenType() == "identifier") {
+            numExpressions++;
+            compileExpression();
+        } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            numExpressions++;
+            compileExpression();
+        }
+        
+        while(getTokenType() == "symbol" && getTokenContent() == ",") {
+            numExpressions++;
+            dump();
+            compileExpression();
+        }
+
+        decrementSpaces();
+        dump("</expressionList>");
+
+        return numExpressions;
+    }
+    
+    void compileTerm() {
+        dump("<term>");
+        incrementSpaces();
+
+        string content = getTokenContent();
+        if (getTokenType() == "integerConstant") {
+            dump();
+        } else if (getTokenType() == "stringConstant") {
+            dump();
+        } else if (getTokenType() == "keyword" && (content == "true" || content == "false" || content == "null" || content == "this")) {
+            dump();
+        } else if (getTokenType() == "identifier") {
+            dump();
+            if (getTokenType() == "symbol" && getTokenContent() == "[") {
+                dump();
+                compileExpression();
+                if (getTokenType() == "symbol" && getTokenContent() == "]") {
+                    dump();
+                } else {
+                    writeError("Syntax error: ']' expected.");
+                }
+            } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
+                compileSubroutineCall(true);
+            } else if (getTokenType() == "symbol" && getTokenContent() == ".") {
+                dump();
+                if (getTokenType() == "identifier") {
+                    dump();
+                } else {
+                    writeError("Syntax error: identifier expected");
+                }
+                if (getTokenType() == "symbol" && getTokenContent() == "(") {
+                    compileSubroutineCall(true);
+                }
+            }
+        } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            dump();
+            compileExpression();
+            if (getTokenType() == "symbol" && getTokenContent() == ")") {
+                dump();
+            } else {
+                writeError("Syntax error: ')' expected.");
+            }
+        } else {
+            writeError("Syntax error: term expected.");
+        }
+
+        decrementSpaces();
+        dump("</term>");
+        
+        
+    }
+
+    void compileSubroutineCall(bool identifierProvided = false) {
+        if (!identifierProvided) {
+            if (getTokenType() == "identifier") {
+                dump();
+            } else {
+                writeError("Syntax error: identifier expected.");
+            }
+        
+
+            if (getTokenType() == "symbol" && getTokenContent() == ".") {
+                dump();
+                if (getTokenType() == "identifier") {
+                    dump();
+                } else {
+                    writeError("Syntax error: identifier expected.");
+                }
+            }
+        }
+
+        if (getTokenType() == "symbol" && getTokenContent() == "(") {
+            dump();
+        } else {
+            writeError("Syntax error: '(' expected.");
+        }
+
+        compileExpressionList();
+
+        if (getTokenType() == "symbol" && getTokenContent() == ")") {
+            dump();
+        } else {
+            writeError("Syntax error: ')' expected.");
+        }
+    }
 
 };
 
@@ -326,7 +745,7 @@ class TokenizationEngine {
     string createToken(string atomic) {
         if (atomic == "{" || atomic == "}" || atomic == "(" || atomic == ")" || atomic == "[" || 
             atomic == "]" || atomic == "." || atomic == "," || atomic == ";" || atomic == "+" || 
-            atomic == "-" || atomic == "*" || atomic == "/" || atomic == "&" || atomic == "|" || 
+            atomic == "-" || atomic == "*" || atomic == "/" || atomic == "&amp;" || atomic == "|" || 
             atomic == "&lt;" || atomic == "&gt;" || atomic == "=" || atomic == "~") {
             
             return "<symbol> " + atomic + " </symbol>\n";
@@ -422,6 +841,8 @@ int main(int argc, char** argv) {
     ofstream outFile("tokens.xml");
     outFile << tokenized.str();
     outFile.close();
+
+    CompilationEngine ce(tokenized, "out.anz", "out.err");
 
     return 0;
 };

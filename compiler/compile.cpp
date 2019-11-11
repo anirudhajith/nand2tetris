@@ -43,7 +43,6 @@ class CodeGenerationEngine {
     string currentSubroutineType;
 
     bool isToken() {
-        //cout << "isToken()" << endl;
         string line = *currentLine;
         if (line.substr(0,9) == "<keyword>" || line.substr(0, 12) == "<identifier>" || line.substr(0, 17) == "<integerConstant>" || line.substr(0,16) == "<stringConstant>" || line.substr(0,8) == "<symbol>") {
             return true;
@@ -53,7 +52,6 @@ class CodeGenerationEngine {
     }
 
     bool isToken(string line) {
-        //cout << "isToken()" << endl;
         if (line.substr(0,9) == "<keyword>" || line.substr(0, 12) == "<identifier>" || line.substr(0, 17) == "<integerConstant>" || line.substr(0,16) == "<stringConstant>" || line.substr(0,8) == "<symbol>") {
             return true;
         } else {
@@ -69,7 +67,6 @@ class CodeGenerationEngine {
     string getTokenContent() {
         string token = *currentLine;
         string tokenType = getTokenType();
-        //cout << token << "    " << tokenType << endl;
         if (!isToken()) return "";
         return token.substr(tokenType.length() + 3, token.length() - 2 * tokenType.length() - 7);
     }
@@ -85,8 +82,8 @@ class CodeGenerationEngine {
     }
 
     void writeError(string error) {
-        cout << "Failed at line " << "'" <<  *currentLine << "'" << endl << endl;
-        cout << vmDump.str() << endl;
+        //cout << "Failed at line " << "'" <<  *currentLine << "'" << endl << endl;
+        //cout << vmDump.str() << endl;
         ofstream err(errorFile);
         err << error << endl;
         err.close();
@@ -147,7 +144,7 @@ class CodeGenerationEngine {
     }
 
     void incrementLine() {
-        cout << *currentLine << endl;
+        //cout << *currentLine << endl;
         currentLine++;
     }
     public:
@@ -171,7 +168,6 @@ class CodeGenerationEngine {
     }
 
     void compileClass() {
-        //cout << "compileClass" << endl;
         classSymbolTable.clear();
         staticCount = 0;
         fieldCount = 0;
@@ -195,7 +191,6 @@ class CodeGenerationEngine {
     }
 
     void compileSubroutine() {
-        //cout << "compileSubroutine" << endl;
         classSymbolTable.clear();
         localCount = 0;
         argumentCount = 0;
@@ -216,7 +211,6 @@ class CodeGenerationEngine {
     }
 
     void compileSubroutineBody() {
-        //cout << "compileSubroutineBody" << endl;
         incrementLine();      // <symbol> { </symbol>
         while (*currentLine == "<varDec>") {
             incrementLine();      // <varDec>
@@ -240,7 +234,6 @@ class CodeGenerationEngine {
     }
 
     void compileClassVarDec() {
-        //cout << "compileClassVarDec" << endl;
         string kind = getTokenContent(); incrementLine();
         string type = getTokenContent(); incrementLine();
         string name = getTokenContent(); incrementLine();
@@ -268,7 +261,6 @@ class CodeGenerationEngine {
     }
 
     void compileParameterList() {
-        //cout << "compileParameterList" << endl;
         while (*currentLine != "</parameterList>") {
             string type = getTokenContent(); incrementLine();
             string name = getTokenContent(); incrementLine();
@@ -285,9 +277,7 @@ class CodeGenerationEngine {
     }
 
     void compileStatements() {
-        //cout << "compileStatements" << endl;
         while(*currentLine != "</statements>") {
-            //cout << *currentLine << endl;
             if (*currentLine == "<letStatement>") {
                 incrementLine();
                 compileLetStatement();
@@ -309,7 +299,6 @@ class CodeGenerationEngine {
     }
     
     void compileVarDec() {
-        //cout << "compileVarDec" << endl;
         incrementLine();      // <keyword> var </keyword>
         string type = getTokenContent(); incrementLine();
         string name = getTokenContent(); incrementLine();
@@ -337,7 +326,6 @@ class CodeGenerationEngine {
     }
 
     void compileIfStatement() {
-        //cout << "compileIf" << endl;
         int TlabelNum = labelNum; labelNum += 2;
         incrementLine();      // <keyword> if </keyword>
         incrementLine();      // <symbol> ( </symbol>
@@ -507,7 +495,6 @@ class CodeGenerationEngine {
     }
 
     int compileExpressionList() {
-        cout << "expressionlist" << endl;
         int nP = 0;
         while (*currentLine == "<expression>") {
             incrementLine();          // <expression>
@@ -522,7 +509,6 @@ class CodeGenerationEngine {
     }
 
     void compileTerm() {                        // add errors
-        cout << "term" << endl;
         if (isUnaryOp()) {  
             string op = getTokenContent();
             incrementLine();      // <term>
@@ -549,9 +535,7 @@ class CodeGenerationEngine {
             }
             incrementLine();      // <keywordConstant> keyword </keywordConstant>
         } else if (getTokenType() == "stringConstant") {
-            cout << "start" << endl;
             int STRLEN = getTokenContent().size();
-            cout << "'" << getTokenContent() << "'" << endl;
             dump("push constant " + to_string(STRLEN));
             dump("call String.new 1");
             for(int i=0; i < STRLEN; i++) {
@@ -559,7 +543,6 @@ class CodeGenerationEngine {
                 dump("call String.appendChar 2");
             }
             incrementLine();      // <stringConstant> string </stringConstant>
-            cout << "done" << endl;
         } else if (getTokenType() == "identifier") {
             currentLine++;
             vector<string>::iterator next = currentLine;
@@ -741,8 +724,8 @@ class AnalysisEngine {
     }
 
     void writeError(string error) {
-        cout << "Failed at " << "'" <<  *currentToken << "'" << endl << "'" << getTokenType() << "'" << endl << "'" <<  getTokenContent()  << "'" << endl << endl;
-        cout << xmlDump.str() << endl;
+        //cout << "Failed at " << "'" <<  *currentToken << "'" << endl << "'" << getTokenType() << "'" << endl << "'" <<  getTokenContent()  << "'" << endl << endl;
+        //cout << xmlDump.str() << endl;
         ofstream err(errorFile);
         err << error << endl;
         err.close();
@@ -1480,7 +1463,6 @@ int main(int argc, char** argv) {
 
         TokenizationEngine te;
         stringstream jackStream = te.padSymbols(jackFileContents);
-        //cout << jackStream.str() << endl;
         string atomic, word;
         bool inString = false;
         while (jackStream >> word) {

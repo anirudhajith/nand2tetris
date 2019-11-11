@@ -82,8 +82,8 @@ class CodeGenerationEngine {
     }
 
     void writeError(string error) {
-        //cout << "Failed at line " << "'" <<  *currentLine << "'" << endl << endl;
-        //cout << vmDump.str() << endl;
+        cout << "Failed at line " << "'" <<  *currentLine << "'" << endl << endl;
+        cout << vmDump.str() << endl;
         ofstream err(errorFile);
         err << error << endl;
         err.close();
@@ -118,10 +118,10 @@ class CodeGenerationEngine {
         return (*currentLine == "<symbol> - </symbol>" || *currentLine == "<symbol> ~ </symbol>");
     }
 
-    string op2vm(string op) {
+    string op2vm(string op, bool isUnary=false) {
         if (op == "+") {
             return "add";
-        } else if (op == "-") {
+        } else if (op == "-" && !isUnary) {
             return "sub";
         } else if (op == "&amp;") {
             return "and";
@@ -137,6 +137,10 @@ class CodeGenerationEngine {
             return "call Math.multiply 2";
         } else if (op == "/") {
             return "call Math.divide 2";
+        } else if (op == "-" && isUnary) {
+            return "neg";
+        } else if (op == "~") {
+            return "not";
         }
 
         writeError("Syntax error: operator expected.");
@@ -160,7 +164,7 @@ class CodeGenerationEngine {
         fieldCount = 0;
         staticCount = 0;
         labelNum = 0;
-        
+
         incrementLine();
         compileClass();
         
@@ -191,7 +195,7 @@ class CodeGenerationEngine {
     }
 
     void compileSubroutine() {
-        classSymbolTable.clear();
+        subroutineSymbolTable.clear();
         localCount = 0;
         argumentCount = 0;
 
@@ -247,7 +251,7 @@ class CodeGenerationEngine {
 
         while(getTokenContent() == ",") {
             incrementLine();
-            name = getTokenContent();
+            name = getTokenContent(); incrementLine();
 
             if (classSymbolTable.count(name) == 0) {
                 classSymbolTable[name] = variable(name, kind, type, kind == "this" ? fieldCount++ : staticCount++);
@@ -346,8 +350,8 @@ class CodeGenerationEngine {
             incrementLine();      // <statments>
             compileStatements();
             incrementLine();      // <symbol> } </symbol>
-            dump("label " + currentClassName + "." + to_string(TlabelNum + 1));
         }
+        dump("label " + currentClassName + "." + to_string(TlabelNum + 1));
         incrementLine();      // </ifStatement>
     }
     
@@ -451,14 +455,26 @@ class CodeGenerationEngine {
     void compileLetStatement() {            // add check in classSymbolTable?
         incrementLine();      // <keyword> let </keyword>
         string name = getTokenContent(); incrementLine();     // <identifier> name </identifier>
-        if (subroutineSymbolTable.count(name) == 0) writeError("Declaration error: " + name + " undeclared.");
+        string kind, type;
+        int index;
+        if (subroutineSymbolTable.count(name) > 0)  {
+            kind = subroutineSymbolTable[name].kind;
+            type = subroutineSymbolTable[name].type;
+            index = subroutineSymbolTable[name].index;
+        } else if (classSymbolTable.count(name) > 0) {
+            kind = classSymbolTable[name].kind;
+            type = classSymbolTable[name].type;
+            index = classSymbolTable[name].index;
+        } else {
+            writeError("Declaration error: " + name + " undeclared.");
+        }
         
         if (getTokenContent() == "[") {
             incrementLine();      // <symbol> [ </symbol>
             incrementLine();      // <expression>
             compileExpression();
             incrementLine();      // <symbol> ] </symbol>
-            dump("push " + subroutineSymbolTable[name].kind + " " + to_string(subroutineSymbolTable[name].index));
+            dump("push " + kind + " " + to_string(index));
             dump("add");
             incrementLine();      // <symbol> = </symbol>
             incrementLine();      // <expression>
@@ -471,7 +487,7 @@ class CodeGenerationEngine {
             incrementLine();      // <symbol> = </symbol>
             incrementLine();      // <expression>
             compileExpression();
-            dump("pop " + subroutineSymbolTable[name].kind + " " + to_string(subroutineSymbolTable[name].index));
+            dump("pop " + kind + " " + to_string(index));
         }
 
         incrementLine();          // <symbol> ; </symbol>
@@ -511,9 +527,10 @@ class CodeGenerationEngine {
     void compileTerm() {                        // add errors
         if (isUnaryOp()) {  
             string op = getTokenContent();
-            incrementLine();      // <term>
+            incrementLine();      // <symbol> unaryOp </symbol>
+            incrementLine();      // <expression>
             compileTerm();
-            dump(op2vm(op));
+            dump(op2vm(op, true));
         } else if (getTokenContent() == "(") {
             incrementLine();      // <symbol> ( </symbol>
             incrementLine();      // <expression>
@@ -522,18 +539,18 @@ class CodeGenerationEngine {
         } else if (getTokenType() == "integerConstant") {
             dump("push constant " + getTokenContent());
             incrementLine();      // <integerConstant> integer </integerConstant>
-        } else if (getTokenType() == "keywordConstant") {
-            if (getTokenType() == "true") {
+        } else if (getTokenType() == "keyword") {
+            if (getTokenContent() == "true") {
                 dump("push constant 0");
                 dump("not");
-            } else if (getTokenType() == "false") {
+            } else if (getTokenContent() == "false") {
                 dump("push constant 0");
-            } else if (getTokenType() == "null") {
+            } else if (getTokenContent() == "null") {
                 dump("push constant 0");
-            } else if (getTokenType() == "this") {
+            } else if (getTokenContent() == "this") {
                 dump("push pointer 0");
             }
-            incrementLine();      // <keywordConstant> keyword </keywordConstant>
+            incrementLine();      // <keyword> keywordConstant </keyword>
         } else if (getTokenType() == "stringConstant") {
             int STRLEN = getTokenContent().size();
             dump("push constant " + to_string(STRLEN));
@@ -605,26 +622,33 @@ class CodeGenerationEngine {
                     string id2 = getTokenContent();
                     incrementLine();     // <identifier> subroutineName </identifier>
                     string kind, type;
+                    int index;
                     if (subroutineSymbolTable.count(id1) > 0) {
                         kind = subroutineSymbolTable[id1].kind;
                         type = subroutineSymbolTable[id1].type;
+                        index = subroutineSymbolTable[id1].index;
                         
                         incrementLine();      // <symbol> ( </symbol>
                         incrementLine();      // <expressionList>
+                        dump("push " + kind + " " + to_string(index));
                         int nP = compileExpressionList();
                         incrementLine();      // <symbol> ) </symbol>
 
+                        
                         dump("call " + type + "." + id2 + " " + to_string(nP + 1));
                         //dump("pop temp 0");
                     } else if (classSymbolTable.count(id1) > 0) {
                         kind = classSymbolTable[id1].kind;
                         type = classSymbolTable[id1].type;
+                        index = classSymbolTable[id1].index;
                         
                         incrementLine();      // <symbol> ( </symbol>
                         incrementLine();      // <expressionList>
+                        dump("push " + kind + " " + to_string(index));
                         int nP = compileExpressionList();
                         incrementLine();      // <symbol> ) </symbol>
 
+                        
                         dump("call " + type + "." + id2 + " " + to_string(nP + 1));
                         //dump("pop temp 0");
                     } else {
@@ -715,17 +739,19 @@ class AnalysisEngine {
     }
 
     void dump(string line) {
+        //cout << generateSpaces() << line << "\n";
         xmlDump << generateSpaces() << line << "\n";
     }
 
     void dump() {
+        //cout << generateSpaces() << *currentToken << "\n";
         xmlDump << generateSpaces() << *currentToken << "\n";
         currentToken++;
     }
 
     void writeError(string error) {
-        //cout << "Failed at " << "'" <<  *currentToken << "'" << endl << "'" << getTokenType() << "'" << endl << "'" <<  getTokenContent()  << "'" << endl << endl;
-        //cout << xmlDump.str() << endl;
+        cout << "Failed at " << "'" <<  *currentToken << "'" << endl << "'" << getTokenType() << "'" << endl << "'" <<  getTokenContent()  << "'" << endl << endl;
+        cout << xmlDump.str() << endl;
         ofstream err(errorFile);
         err << error << endl;
         err.close();
@@ -1061,9 +1087,10 @@ class AnalysisEngine {
             compileExpression();
         } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
             compileExpression();
+        } else if (isUnaryOp()) {
+            compileExpression();
         }
         
-
         if (getTokenType() == "symbol" && getTokenContent() == ";") {
             dump();
         } else {
@@ -1201,7 +1228,7 @@ class AnalysisEngine {
         } else if (getTokenType() == "identifier") {
             numExpressions++;
             compileExpression();
-        } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
+        } else if (getTokenType() == "symbol" && getTokenContent() != ")") {
             numExpressions++;
             compileExpression();
         }
@@ -1223,6 +1250,7 @@ class AnalysisEngine {
         incrementSpaces();
 
         string content = getTokenContent();
+
         if (getTokenType() == "integerConstant") {
             dump();
         } else if (getTokenType() == "stringConstant") {
@@ -1430,10 +1458,9 @@ int main(int argc, char** argv) {
         }
     } 
 
-    stringstream tokenized;
-    tokenized << "<tokens>\n";
-
     for(int fileNumber = 2; fileNumber < argc; fileNumber++) {
+        stringstream tokenized;
+        tokenized << "<tokens>\n";
         string filename = argv[fileNumber];
         string classname = filename.substr(0, filename.length() - 5);
         string jackFileContents;
@@ -1463,8 +1490,9 @@ int main(int argc, char** argv) {
 
         TokenizationEngine te;
         stringstream jackStream = te.padSymbols(jackFileContents);
-        string atomic, word;
+        string atomic, word = "";
         bool inString = false;
+        /*
         while (jackStream >> word) {
             if (inString) {
                 atomic = atomic + " " + word;
@@ -1474,13 +1502,40 @@ int main(int argc, char** argv) {
                 }
             } else {
                 atomic = word;
-                if (word[0] != '"') {
+                if (word[0] != '"' || (word[0] == '"' && word.back() == '"')) {
                     tokenized << te.createToken(atomic);
                 } else {
                     atomic = word;
                     inString = true;
                 }
             }
+        }
+        */
+
+        for (char c: jackStream.str()) {
+            if (inString) {
+                if (c == '"') {
+                    word += c;
+                    inString = false;
+                    if (word != "") {
+                        //tokenized << te.createToken(word);
+                    }
+                } else {
+                    word += c;
+                }
+            } else {
+                if (c == '"') {
+                    word += c;
+                    inString = true;
+                } else if (c == ' ' || c == '\n') {
+                    if (word != "") {
+                        tokenized << te.createToken(word);
+                    }
+                    word = "";
+                } else {
+                    word += c;
+                }
+            } 
         }
 
         tokenized << "</tokens>\n";

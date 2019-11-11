@@ -2,11 +2,675 @@
 #include <fstream>
 #include <sstream>
 #include <regex>
+#include <unordered_map>
 #include <stdlib.h>
 
 using namespace std;
 
-class CompilationEngine {
+struct variable {
+    string name;
+    string kind;    // segment
+    string type;    // datatype
+    int index;
+
+    variable(string varName, string varKind, string varType, int varIndex) {
+        name = varName;
+        kind = varKind;
+        type = varType;
+        index = varIndex;
+    }
+
+    variable() {};
+};
+
+class CodeGenerationEngine {
+    vector<string> lines;
+    vector<string>::iterator currentLine;
+    string vmFile;
+    string errorFile;
+    stringstream vmDump;
+
+    unordered_map<string, variable> classSymbolTable;
+    unordered_map<string, variable> subroutineSymbolTable;
+    int staticCount;
+    int fieldCount;
+    int localCount;
+    int argumentCount;
+    int labelNum;
+
+    string currentClassName;
+    string currentSubroutineName;
+    string currentSubroutineType;
+
+    bool isToken() {
+        //cout << "isToken()" << endl;
+        string line = *currentLine;
+        if (line.substr(0,9) == "<keyword>" || line.substr(0, 12) == "<identifier>" || line.substr(0, 17) == "<integerConstant>" || line.substr(0,16) == "<stringConstant>" || line.substr(0,8) == "<symbol>") {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool isToken(string line) {
+        //cout << "isToken()" << endl;
+        if (line.substr(0,9) == "<keyword>" || line.substr(0, 12) == "<identifier>" || line.substr(0, 17) == "<integerConstant>" || line.substr(0,16) == "<stringConstant>" || line.substr(0,8) == "<symbol>") {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    string getTokenType() {
+        string token = *currentLine;
+        return token.substr(1, token.find('>') - 1);
+    }
+
+    string getTokenContent() {
+        string token = *currentLine;
+        string tokenType = getTokenType();
+        //cout << token << "    " << tokenType << endl;
+        if (!isToken()) return "";
+        return token.substr(tokenType.length() + 3, token.length() - 2 * tokenType.length() - 7);
+    }
+
+    string getTokenType(string token) {
+        return token.substr(1, token.find('>') - 1);
+    }
+
+    string getTokenContent(string token) {
+        string tokenType = getTokenType(token);
+        if (!isToken(token)) return "";
+        return token.substr(tokenType.length() + 3, token.length() - 2 * tokenType.length() - 7);
+    }
+
+    void writeError(string error) {
+        cout << "Failed at line " << "'" <<  *currentLine << "'" << endl << endl;
+        cout << vmDump.str() << endl;
+        ofstream err(errorFile);
+        err << error << endl;
+        err.close();
+        exit(EXIT_FAILURE);
+    }
+
+    void writeVM() {
+        ofstream vm(vmFile);
+        vm << vmDump.str();
+        vm.close();
+    }
+
+    string trim(const string s) { // removes whitespace characters from beginnig and end of string s
+        string x = s;
+        for(int i=0; i<(int)s.length(); i++) {
+            const int l = (int)x.length()-1;
+            if(x[l]==' '||x[l]=='\t'||x[l]=='\n'||x[l]=='\v'||x[l]=='\f'||x[l]=='\r'||x[l]=='\0') x.erase(l, 1);
+            if(x[0]==' '||x[0]=='\t'||x[0]=='\n'||x[0]=='\v'||x[0]=='\f'||x[0]=='\r'||x[0]=='\0') x.erase(0, 1);
+        }
+        return x;
+    }
+
+    void dump(string instruction) {
+        vmDump << instruction << "\n";
+    }
+
+    bool isOp() {
+        return (currentLine->substr(0,8) == "<symbol>" && (getTokenContent() == "+" || getTokenContent() == "-" || getTokenContent() == "*" || getTokenContent() == "/" || getTokenContent() == "&amp;" || getTokenContent() == "|" || getTokenContent() == "&lt;" || getTokenContent() == "&gt;" || getTokenContent() == "="));
+    }
+
+    bool isUnaryOp() {
+        return (*currentLine == "<symbol> - </symbol>" || *currentLine == "<symbol> ~ </symbol>");
+    }
+
+    string op2vm(string op) {
+        if (op == "+") {
+            return "add";
+        } else if (op == "-") {
+            return "sub";
+        } else if (op == "&amp;") {
+            return "and";
+        } else if (op == "|") {
+            return "or";
+        } else if (op == "&gt;") {
+            return "gt";
+        } else if (op == "&lt;") {
+            return "lt";
+        } else if (op == "=") {
+            return "eq";
+        } else if (op == "*") {
+            return "call Math.multiply 2";
+        } else if (op == "/") {
+            return "call Math.divide 2";
+        }
+
+        writeError("Syntax error: operator expected.");
+        return "";
+    }
+
+    void incrementLine() {
+        cout << *currentLine << endl;
+        currentLine++;
+    }
+    public:
+
+    CodeGenerationEngine(stringstream &analysis, string vmPath, string errPath) {
+        string line;
+        while(getline(analysis, line, '\n')) {
+            lines.push_back(trim(line));
+        }
+        currentLine = lines.begin();
+        vmFile = vmPath;
+        errorFile = errPath;
+        fieldCount = 0;
+        staticCount = 0;
+        labelNum = 0;
+        
+        incrementLine();
+        compileClass();
+        
+        writeVM();
+    }
+
+    void compileClass() {
+        //cout << "compileClass" << endl;
+        classSymbolTable.clear();
+        staticCount = 0;
+        fieldCount = 0;
+
+        incrementLine();      // <keyword> class </keyword>
+        currentClassName = getTokenContent(); incrementLine(); // class name identifier
+        incrementLine();      // <symbol> { </symbol>
+
+        while (*currentLine == "<classVarDec>") {
+            incrementLine();
+            compileClassVarDec();
+        }
+
+        while (*currentLine == "<subroutineDec>") {
+            incrementLine();
+            compileSubroutine();
+        }
+
+        incrementLine();      // <symbol> } </symbol>
+        incrementLine();      // </class>
+    }
+
+    void compileSubroutine() {
+        //cout << "compileSubroutine" << endl;
+        classSymbolTable.clear();
+        localCount = 0;
+        argumentCount = 0;
+
+        currentSubroutineType = getTokenContent(); incrementLine();
+        string returnType = getTokenContent(); incrementLine();
+        currentSubroutineName = getTokenContent(); incrementLine();
+        if (currentSubroutineType == "method") {
+            subroutineSymbolTable["this"] = variable("this", "argument", currentClassName, argumentCount++);
+        }
+        incrementLine();      // <symbol> ( </symbol>
+        incrementLine();      // <parameterList>
+        compileParameterList();
+        incrementLine();      // <symbol> ) </symbol>
+        incrementLine();      // <subroutineBody>
+        compileSubroutineBody();
+        incrementLine();      // </subroutineDec>
+    }
+
+    void compileSubroutineBody() {
+        //cout << "compileSubroutineBody" << endl;
+        incrementLine();      // <symbol> { </symbol>
+        while (*currentLine == "<varDec>") {
+            incrementLine();      // <varDec>
+            compileVarDec();
+        }
+
+        dump("function " + currentClassName + "." + currentSubroutineName + " " + to_string(localCount));
+        if (currentSubroutineType == "constructor") {
+            dump("push constant " + to_string(fieldCount));
+            dump("call Memory.alloc 1");
+            dump("pop pointer 0");
+        } else if (currentSubroutineType == "method") {
+            dump("push argument 0");
+            dump("pop pointer 0");
+        }
+        
+        incrementLine();      // <statements>
+        compileStatements();
+        incrementLine();      // <symbol> } </symbol>
+        incrementLine();      // </subroutineBody>
+    }
+
+    void compileClassVarDec() {
+        //cout << "compileClassVarDec" << endl;
+        string kind = getTokenContent(); incrementLine();
+        string type = getTokenContent(); incrementLine();
+        string name = getTokenContent(); incrementLine();
+        if (kind == "field") kind = "this";
+
+        if (classSymbolTable.count(name) == 0) {
+            classSymbolTable[name] = variable(name, kind, type, kind == "this" ? fieldCount++ : staticCount++);
+        } else {
+            writeError("Declaration error: Repeated declaration of '" + name + "'");
+        }
+
+        while(getTokenContent() == ",") {
+            incrementLine();
+            name = getTokenContent();
+
+            if (classSymbolTable.count(name) == 0) {
+                classSymbolTable[name] = variable(name, kind, type, kind == "this" ? fieldCount++ : staticCount++);
+            } else {
+                writeError("Declaration error: Repeated declaration of '" + name + "'");
+            }
+        }
+
+        incrementLine();      // ;
+        incrementLine();      // </classVarDec>
+    }
+
+    void compileParameterList() {
+        //cout << "compileParameterList" << endl;
+        while (*currentLine != "</parameterList>") {
+            string type = getTokenContent(); incrementLine();
+            string name = getTokenContent(); incrementLine();
+            if (subroutineSymbolTable.count(name) == 0) {
+                subroutineSymbolTable[name] = variable(name, "argument", type, argumentCount++);
+            } else {
+                writeError("Declaration error: Repeated declaration of '" + name + "'");
+            }
+
+            if (getTokenContent() == ",") incrementLine();
+        }
+
+        incrementLine();      // </paramenterList>
+    }
+
+    void compileStatements() {
+        //cout << "compileStatements" << endl;
+        while(*currentLine != "</statements>") {
+            //cout << *currentLine << endl;
+            if (*currentLine == "<letStatement>") {
+                incrementLine();
+                compileLetStatement();
+            } else if (*currentLine == "<ifStatement>") {
+                incrementLine();
+                compileIfStatement();
+            } else if (*currentLine == "<whileStatement>") {
+                incrementLine();
+                compileWhileStatement();
+            } else if (*currentLine == "<doStatement>") {
+                incrementLine();
+                compileDoStatement();
+            } else if (*currentLine == "<returnStatement>") {
+                incrementLine();
+                compileReturnStatement();
+            }
+        }
+        incrementLine();      // </statements>
+    }
+    
+    void compileVarDec() {
+        //cout << "compileVarDec" << endl;
+        incrementLine();      // <keyword> var </keyword>
+        string type = getTokenContent(); incrementLine();
+        string name = getTokenContent(); incrementLine();
+        
+        if (subroutineSymbolTable.count(name) == 0) {
+            subroutineSymbolTable[name] = variable(name, "local", type, localCount++);
+        } else {
+            writeError("Declaration error: Repeated declaration of '" + name + "'");
+        }
+
+        while(getTokenContent() == ",") {
+            incrementLine();            // <symbol> , </symbol>
+            name = getTokenContent();
+            incrementLine();            // <identifier> varName </identifier>
+
+            if (subroutineSymbolTable.count(name) == 0) {
+                subroutineSymbolTable[name] = variable(name, "local", type, localCount++);
+            } else {
+                writeError("Declaration error: Repeated declaration of '" + name + "'");
+            }
+        }
+
+        incrementLine();      // ;
+        incrementLine();      // </varDec>
+    }
+
+    void compileIfStatement() {
+        //cout << "compileIf" << endl;
+        int TlabelNum = labelNum; labelNum += 2;
+        incrementLine();      // <keyword> if </keyword>
+        incrementLine();      // <symbol> ( </symbol>
+        incrementLine();      // <expression>
+        compileExpression();
+        incrementLine();      // <symbol> ) </symbol>
+        incrementLine();      // <symbol> { </symbol>
+        dump("not");
+        dump("if-goto " + currentClassName + "." + to_string(TlabelNum));
+        incrementLine();      // <statments>
+        compileStatements();
+        incrementLine();      // <symbol> } </symbol>
+        dump("goto " + currentClassName + "." + to_string(TlabelNum + 1));
+        dump("label " + currentClassName + "." + to_string(TlabelNum));
+        if (getTokenContent() == "else") {
+            incrementLine();      // <keyword> else </keyword>
+            incrementLine();      // <symbol> { </symbol>
+            incrementLine();      // <statments>
+            compileStatements();
+            incrementLine();      // <symbol> } </symbol>
+            dump("label " + currentClassName + "." + to_string(TlabelNum + 1));
+        }
+        incrementLine();      // </ifStatement>
+    }
+    
+    void compileReturnStatement() {
+        incrementLine();          // <keyword> return </keyword>
+        if (*currentLine == "<expression>") {
+            incrementLine();      // <expression>
+            compileExpression();
+            dump("return");
+        } else {
+            dump("push constant 0");
+            dump("return");
+        }
+        incrementLine();      // <symbol> ; </symbol>
+        incrementLine();      // </returnStatement>
+    }
+
+    void compileWhileStatement() {
+        int TlabelNum = labelNum; labelNum += 2;
+        incrementLine();      // <keyword> while </keyword>
+        incrementLine();      // <symbol> ( </symbol>
+        incrementLine();      // <expression>
+        dump("label " + currentClassName + "." + to_string(TlabelNum));
+        compileExpression();
+        incrementLine();      // <symbol> ) </symbol>
+        dump("not");
+        dump("if-goto " + currentClassName + "." + to_string(TlabelNum + 1));
+        incrementLine();      // <symbol> { </symbol>
+        incrementLine();      // <statements>
+        compileStatements();
+        incrementLine();      // <symbol> } </symbol>
+        dump("goto " + currentClassName + "." + to_string(TlabelNum));
+        dump("label " + currentClassName + "." + to_string(TlabelNum + 1));
+        incrementLine();      // </whileStatement>
+    }
+    
+    void compileDoStatement() {                 // add errors
+        incrementLine();      // <keyword> do </keyword>
+        string id1 = getTokenContent();
+        incrementLine();      // <identifier> subroutineName </identifier>
+        
+        if (getTokenContent() == ".") {
+            incrementLine();     // <symbol> . </symbol>
+            string id2 = getTokenContent();
+            string kind, type;
+            int index;
+            incrementLine();     // <identifier> id2 </identifier>
+            if (subroutineSymbolTable.count(id1) > 0) {
+                kind = subroutineSymbolTable[id1].kind;
+                type = subroutineSymbolTable[id1].type;
+                index = subroutineSymbolTable[id1].index;
+                
+                dump("push " + kind + " " + to_string(index));
+                incrementLine();      // <symbol> ( </symbol>
+                incrementLine();      // <expressionList>
+                int nP = compileExpressionList();
+                incrementLine();      // <symbol> ) </symbol>
+                incrementLine();      // <symbol> ; </symbol>
+
+                dump("call " + type + "." + id2 + " " + to_string(nP + 1));
+                dump("pop temp 0");
+            } else if (classSymbolTable.count(id1) > 0) {
+                kind = classSymbolTable[id1].kind;
+                type = classSymbolTable[id1].type;
+                index = classSymbolTable[id1].index;
+                
+                dump("push " + kind + " " + to_string(index));
+                incrementLine();      // <symbol> ( </symbol>
+                incrementLine();      // <expressionList>
+                int nP = compileExpressionList();
+                incrementLine();      // <symbol> ) </symbol>
+                incrementLine();      // <symbol> ; </symbol>
+
+                dump("call " + type + "." + id2 + " " + to_string(nP + 1));
+                dump("pop temp 0");
+            } else {
+                incrementLine();      // <symbol> ( </symbol>
+                incrementLine();      // <expressionList>
+                int nP = compileExpressionList();
+                incrementLine();      // <symbol> ) </symbol>
+                incrementLine();      // <symbol> ; </symbol>
+
+                dump("call " + id1 + "." + id2 + " " + to_string(nP));
+                dump("pop temp 0");
+            }
+        } else {
+            dump("push pointer 0");
+            incrementLine();      // <symbol> ( </symbol>
+            incrementLine();      // <expressionList>
+            int nP = compileExpressionList();
+            incrementLine();      // <symbol> ) </symbol>
+            incrementLine();      // <symbol> ; </symbol>
+
+            dump("call " + currentClassName + "." + id1 + " " + to_string(nP + 1));
+            dump("pop temp 0");
+        }
+
+        incrementLine();     // </doStatement>
+    }
+    
+    void compileLetStatement() {            // add check in classSymbolTable?
+        incrementLine();      // <keyword> let </keyword>
+        string name = getTokenContent(); incrementLine();     // <identifier> name </identifier>
+        if (subroutineSymbolTable.count(name) == 0) writeError("Declaration error: " + name + " undeclared.");
+        
+        if (getTokenContent() == "[") {
+            incrementLine();      // <symbol> [ </symbol>
+            incrementLine();      // <expression>
+            compileExpression();
+            incrementLine();      // <symbol> ] </symbol>
+            dump("push " + subroutineSymbolTable[name].kind + " " + to_string(subroutineSymbolTable[name].index));
+            dump("add");
+            incrementLine();      // <symbol> = </symbol>
+            incrementLine();      // <expression>
+            compileExpression();
+            dump("pop temp 0");
+            dump("pop pointer 1");
+            dump("push temp 0");
+            dump("pop that 0");    
+        } else {
+            incrementLine();      // <symbol> = </symbol>
+            incrementLine();      // <expression>
+            compileExpression();
+            dump("pop " + subroutineSymbolTable[name].kind + " " + to_string(subroutineSymbolTable[name].index));
+        }
+
+        incrementLine();          // <symbol> ; </symbol>
+        incrementLine();          // </letStatement>
+    }
+
+    void compileExpression() {
+        incrementLine();            // <term>
+        compileTerm();
+        
+        string op;
+        while (isOp()) {
+            op = getTokenContent();
+            incrementLine();            // <symbol> op </symbol>
+            incrementLine();            // <term>
+            compileTerm();
+            dump(op2vm(op));
+        }
+
+        incrementLine();          // </expression>
+    }
+
+    int compileExpressionList() {
+        cout << "expressionlist" << endl;
+        int nP = 0;
+        while (*currentLine == "<expression>") {
+            incrementLine();          // <expression>
+            compileExpression();
+            nP++;
+            
+            if (isToken() && getTokenContent() == ",") incrementLine();
+        }
+        
+        incrementLine();              // </expressionList>
+        return nP; 
+    }
+
+    void compileTerm() {                        // add errors
+        cout << "term" << endl;
+        if (isUnaryOp()) {  
+            string op = getTokenContent();
+            incrementLine();      // <term>
+            compileTerm();
+            dump(op2vm(op));
+        } else if (getTokenContent() == "(") {
+            incrementLine();      // <symbol> ( </symbol>
+            incrementLine();      // <expression>
+            compileExpression();
+            incrementLine();      // <symbol> ) </symbol>
+        } else if (getTokenType() == "integerConstant") {
+            dump("push constant " + getTokenContent());
+            incrementLine();      // <integerConstant> integer </integerConstant>
+        } else if (getTokenType() == "keywordConstant") {
+            if (getTokenType() == "true") {
+                dump("push constant 0");
+                dump("not");
+            } else if (getTokenType() == "false") {
+                dump("push constant 0");
+            } else if (getTokenType() == "null") {
+                dump("push constant 0");
+            } else if (getTokenType() == "this") {
+                dump("push pointer 0");
+            }
+            incrementLine();      // <keywordConstant> keyword </keywordConstant>
+        } else if (getTokenType() == "stringConstant") {
+            cout << "start" << endl;
+            int STRLEN = getTokenContent().size();
+            cout << "'" << getTokenContent() << "'" << endl;
+            dump("push constant " + to_string(STRLEN));
+            dump("call String.new 1");
+            for(int i=0; i < STRLEN; i++) {
+                dump("push constant " + to_string(int(getTokenContent()[i])));
+                dump("call String.appendChar 2");
+            }
+            incrementLine();      // <stringConstant> string </stringConstant>
+            cout << "done" << endl;
+        } else if (getTokenType() == "identifier") {
+            currentLine++;
+            vector<string>::iterator next = currentLine;
+            currentLine--;
+            string name = getTokenContent();
+
+            if (getTokenContent(*next) != "(" && getTokenContent(*next) != "[" && getTokenContent(*next) != ".") {
+                if (subroutineSymbolTable.count(getTokenContent()) > 0) {
+                    string kind = subroutineSymbolTable[name].kind;
+                    int index = subroutineSymbolTable[name].index;
+
+                    dump("push " + kind + " " + to_string(index));
+                } else if (classSymbolTable.count(getTokenContent()) > 0) {
+                    string kind = classSymbolTable[name].kind;
+                    int index = classSymbolTable[name].index;
+
+                    dump("push " + kind + " " + to_string(index));
+                } else {
+                    writeError("Declaration error: " + name + " undeclared.");
+                }
+                
+                incrementLine();          // <identifier> varName </identifier>
+            } else if (getTokenContent(*next) == "[") {
+                if (subroutineSymbolTable.count(getTokenContent()) > 0) {
+                    string kind = subroutineSymbolTable[name].kind;
+                    int index = subroutineSymbolTable[name].index;
+
+                    incrementLine();          // <identifier> varName </identifier>
+                    incrementLine();          // <symbol> [ </symbol>
+                    incrementLine();          // <expression>
+                    compileExpression();
+                    incrementLine();          // <symbol> ] </symbol>
+                    dump("push " + kind + " " + to_string(index));
+                    dump("add");
+                    dump("pop pointer 1");
+                    dump("push that 0");
+
+                } else if (classSymbolTable.count(getTokenContent()) > 0) {
+                    string kind = classSymbolTable[name].kind;
+                    int index = classSymbolTable[name].index;
+
+                    incrementLine();          // <identifier> varName </identifier>
+                    incrementLine();          // <symbol> [ </symbol>
+                    incrementLine();          // <expression>
+                    compileExpression();
+                    incrementLine();          // <symbol> ] </symbol>
+                    dump("push " + kind + " " + to_string(index));
+                    dump("add");
+                    dump("pop pointer 1");
+                    dump("push that 0");
+                } else {
+                    writeError("Declaration error: " + name + " undeclared.");
+                }
+            } else if (getTokenContent(*next) == "(" || getTokenContent(*next) == ".") {
+                string id1 = getTokenContent();
+                incrementLine();      // <identifier> subroutineName </identifier>
+                
+                if (getTokenContent() == ".") {
+                    incrementLine();     // <symbol> . </symbol>
+                    string id2 = getTokenContent();
+                    incrementLine();     // <identifier> subroutineName </identifier>
+                    string kind, type;
+                    if (subroutineSymbolTable.count(id1) > 0) {
+                        kind = subroutineSymbolTable[id1].kind;
+                        type = subroutineSymbolTable[id1].type;
+                        
+                        incrementLine();      // <symbol> ( </symbol>
+                        incrementLine();      // <expressionList>
+                        int nP = compileExpressionList();
+                        incrementLine();      // <symbol> ) </symbol>
+
+                        dump("call " + type + "." + id2 + " " + to_string(nP + 1));
+                        //dump("pop temp 0");
+                    } else if (classSymbolTable.count(id1) > 0) {
+                        kind = classSymbolTable[id1].kind;
+                        type = classSymbolTable[id1].type;
+                        
+                        incrementLine();      // <symbol> ( </symbol>
+                        incrementLine();      // <expressionList>
+                        int nP = compileExpressionList();
+                        incrementLine();      // <symbol> ) </symbol>
+
+                        dump("call " + type + "." + id2 + " " + to_string(nP + 1));
+                        //dump("pop temp 0");
+                    } else {
+                        incrementLine();      // <symbol> ( </symbol>
+                        incrementLine();      // <expressionList>
+                        int nP = compileExpressionList();
+                        incrementLine();      // <symbol> ) </symbol>
+
+                        dump("call " + id1 + "." + id2 + " " + to_string(nP));
+                        //dump("pop temp 0");
+                    }
+                } else {
+                    dump("push pointer 0");
+                    incrementLine();      // <symbol> ( </symbol>
+                    incrementLine();      // <expressionList>
+                    int nP = compileExpressionList();
+                    incrementLine();      // <symbol> ) </symbol>
+
+                    dump("call " + currentClassName + "." + id1 + " " + to_string(nP + 1));
+                    //dump("pop temp 0");
+                }
+            }
+        }
+
+        incrementLine();          // </term>
+    }
+};
+
+class AnalysisEngine {
     private:
     vector<string> tokens;
     vector<string>::iterator currentToken;
@@ -92,7 +756,7 @@ class CompilationEngine {
     }
 
     public:
-    CompilationEngine(stringstream &tokenized, string anzPath, string errPath) {
+    AnalysisEngine(stringstream &tokenized, string anzPath, string errPath) {
         string token;
         while(getline(tokenized, token, '\n')) {
             tokens.push_back(token);
@@ -105,6 +769,10 @@ class CompilationEngine {
         compileClass();
 
         writeAnalysis();
+    }
+
+    string getXMLDump() {
+        return xmlDump.str();
     }
 
     void compileClass() {
@@ -777,13 +1445,14 @@ int main(int argc, char** argv) {
             cerr << "ERROR: Provide appropriate command line arguments" << endl;
             return 1;
         }
-    }
+    } 
 
     stringstream tokenized;
     tokenized << "<tokens>\n";
 
     for(int fileNumber = 2; fileNumber < argc; fileNumber++) {
         string filename = argv[fileNumber];
+        string classname = filename.substr(0, filename.length() - 5);
         string jackFileContents;
         
         // read file contents into jackFileContents
@@ -831,15 +1500,21 @@ int main(int argc, char** argv) {
                 }
             }
         }
+
+        tokenized << "</tokens>\n";
+
+        ofstream outFile(classname + "T.xml");
+        outFile << tokenized.str();
+        outFile.close();
+
+        AnalysisEngine ae(tokenized, classname + ".xml", classname + ".err");
+        string xmlDump = ae.getXMLDump();
+        stringstream xmlStream(xmlDump);  
+
+        CodeGenerationEngine cge(xmlStream, classname + ".vm", classname + ".err");
         
     }
-    tokenized << "</tokens>\n";
-
-    ofstream outFile("tokens.xml");
-    outFile << tokenized.str();
-    outFile.close();
-
-    CompilationEngine ce(tokenized, "out.anz", "out.err");
+    
 
     return 0;
 };

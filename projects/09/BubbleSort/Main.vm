@@ -1,4 +1,4 @@
-function Main.main 6
+function Main.main 5
 push constant 13
 call String.new 1
 push constant 78
@@ -96,17 +96,17 @@ call String.appendChar 2
 call Keyboard.readInt 1
 pop local 1
 push constant 0
-pop local 5
+pop local 2
 push local 1
 call Array.new 1
 pop local 0
-label WHILE_EXP0
-push local 5
+label Main.0
+push local 2
 push local 1
 lt
 not
-if-goto WHILE_END0
-push local 5
+if-goto Main.1
+push local 2
 push local 0
 add
 push constant 18
@@ -152,32 +152,32 @@ pop temp 0
 pop pointer 1
 push temp 0
 pop that 0
-push local 5
+push local 2
 push constant 1
 add
-pop local 5
-goto WHILE_EXP0
-label WHILE_END0
+pop local 2
+goto Main.0
+label Main.1
 push constant 0
-pop local 5
-label WHILE_EXP1
-push local 5
+pop local 2
+label Main.2
+push local 2
 push local 1
 lt
 not
-if-goto WHILE_END1
+if-goto Main.3
 push constant 0
 pop local 3
-label WHILE_EXP2
+label Main.4
 push local 3
 push local 1
-push local 5
+push local 2
 sub
 push constant 1
 sub
 lt
 not
-if-goto WHILE_END2
+if-goto Main.5
 push local 3
 push local 0
 add
@@ -191,9 +191,8 @@ add
 pop pointer 1
 push that 0
 gt
-if-goto IF_TRUE0
-goto IF_FALSE0
-label IF_TRUE0
+not
+if-goto Main.6
 push local 3
 push local 0
 add
@@ -224,28 +223,30 @@ pop temp 0
 pop pointer 1
 push temp 0
 pop that 0
-label IF_FALSE0
+goto Main.7
+label Main.6
+label Main.7
 push local 3
 push constant 1
 add
 pop local 3
-goto WHILE_EXP2
-label WHILE_END2
-push local 5
+goto Main.4
+label Main.5
+push local 2
 push constant 1
 add
-pop local 5
-goto WHILE_EXP1
-label WHILE_END1
+pop local 2
+goto Main.2
+label Main.3
 push constant 0
-pop local 5
-label WHILE_EXP3
-push local 5
+pop local 2
+label Main.8
+push local 2
 push local 1
 lt
 not
-if-goto WHILE_END3
-push local 5
+if-goto Main.9
+push local 2
 push local 0
 add
 pop pointer 1
@@ -258,12 +259,12 @@ push constant 32
 call String.appendChar 2
 call Output.printString 1
 pop temp 0
-push local 5
+push local 2
 push constant 1
 add
-pop local 5
-goto WHILE_EXP3
-label WHILE_END3
+pop local 2
+goto Main.8
+label Main.9
 call Output.println 0
 pop temp 0
 push constant 0

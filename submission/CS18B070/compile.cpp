@@ -9,7 +9,7 @@ using namespace std;
 
 struct variable {
     string name;
-    string kind;    // segment
+    string kind;    // segment name
     string type;    // datatype
     int index;
 
@@ -23,7 +23,7 @@ struct variable {
     variable() {};
 };
 
-class CodeGenerationEngine {
+class CodeGenerationEngine {        // process .xml into .vm
     vector<string> lines;
     vector<string>::iterator currentLine;
     string vmFile;
@@ -181,12 +181,12 @@ class CodeGenerationEngine {
         incrementLine();      // <symbol> { </symbol>
 
         while (*currentLine == "<classVarDec>") {
-            incrementLine();
+            incrementLine();    // <classVarDec>
             compileClassVarDec();
         }
 
         while (*currentLine == "<subroutineDec>") {
-            incrementLine();
+            incrementLine();    // <subroutineVarDec>
             compileSubroutine();
         }
 
@@ -238,26 +238,26 @@ class CodeGenerationEngine {
     }
 
     void compileClassVarDec() {
-        string kind = getTokenContent(); incrementLine();
-        string type = getTokenContent(); incrementLine();
-        string name = getTokenContent(); incrementLine();
+        string kind = getTokenContent(); incrementLine();   // <keyword> kind </keyword>
+        string type = getTokenContent(); incrementLine();   // <keyword> datatype </keyword>
+        string name = getTokenContent(); incrementLine();   // <identifier> name </identifier>
         if (kind == "field") kind = "this";
 
         if (classSymbolTable.count(name) == 0) {
             classSymbolTable[name] = variable(name, kind, type, kind == "this" ? fieldCount++ : staticCount++);
-        } else {
+        }/* else {
             writeError("Declaration error: Repeated declaration of '" + name + "'");
-        }
+        }*/
 
         while(getTokenContent() == ",") {
-            incrementLine();
-            name = getTokenContent(); incrementLine();
+            incrementLine();                                // <symbol> , </symbol>
+            name = getTokenContent(); incrementLine();      // <identifier> name </identifier>
 
             if (classSymbolTable.count(name) == 0) {
                 classSymbolTable[name] = variable(name, kind, type, kind == "this" ? fieldCount++ : staticCount++);
-            } else {
+            }/* else {
                 writeError("Declaration error: Repeated declaration of '" + name + "'");
-            }
+            }*/
         }
 
         incrementLine();      // ;
@@ -266,15 +266,15 @@ class CodeGenerationEngine {
 
     void compileParameterList() {
         while (*currentLine != "</parameterList>") {
-            string type = getTokenContent(); incrementLine();
-            string name = getTokenContent(); incrementLine();
+            string type = getTokenContent(); incrementLine();   // <keyword> datatype </keyword>
+            string name = getTokenContent(); incrementLine();   // <identifier> name </identifier>
             if (subroutineSymbolTable.count(name) == 0) {
                 subroutineSymbolTable[name] = variable(name, "argument", type, argumentCount++);
-            } else {
+            }/* else {
                 writeError("Declaration error: Repeated declaration of '" + name + "'");
-            }
+            }*/
 
-            if (getTokenContent() == ",") incrementLine();
+            if (getTokenContent() == ",") incrementLine();      // <symbol> , </symbol>
         }
 
         incrementLine();      // </paramenterList>
@@ -283,23 +283,23 @@ class CodeGenerationEngine {
     void compileStatements() {
         while(*currentLine != "</statements>") {
             if (*currentLine == "<letStatement>") {
-                incrementLine();
+                incrementLine();                        // <letStatement>
                 compileLetStatement();
             } else if (*currentLine == "<ifStatement>") {
-                incrementLine();
+                incrementLine();                        // <ifStatement>
                 compileIfStatement();
             } else if (*currentLine == "<whileStatement>") {
-                incrementLine();
+                incrementLine();                        // <whileStatement>
                 compileWhileStatement();
             } else if (*currentLine == "<doStatement>") {
-                incrementLine();
+                incrementLine();                        // <doStatement>
                 compileDoStatement();
             } else if (*currentLine == "<returnStatement>") {
-                incrementLine();
+                incrementLine();                        // <returnStatement>
                 compileReturnStatement();
             }
         }
-        incrementLine();      // </statements>
+        incrementLine();                                // </statements>
     }
     
     void compileVarDec() {
@@ -309,9 +309,9 @@ class CodeGenerationEngine {
         
         if (subroutineSymbolTable.count(name) == 0) {
             subroutineSymbolTable[name] = variable(name, "local", type, localCount++);
-        } else {
+        }/* else {
             writeError("Declaration error: Repeated declaration of '" + name + "'");
-        }
+        }*/
 
         while(getTokenContent() == ",") {
             incrementLine();            // <symbol> , </symbol>
@@ -320,9 +320,9 @@ class CodeGenerationEngine {
 
             if (subroutineSymbolTable.count(name) == 0) {
                 subroutineSymbolTable[name] = variable(name, "local", type, localCount++);
-            } else {
+            }/* else {
                 writeError("Declaration error: Repeated declaration of '" + name + "'");
-            }
+            }*/
         }
 
         incrementLine();      // ;
@@ -388,7 +388,7 @@ class CodeGenerationEngine {
         incrementLine();      // </whileStatement>
     }
     
-    void compileDoStatement() {                 // add errors
+    void compileDoStatement() {                 
         incrementLine();      // <keyword> do </keyword>
         string id1 = getTokenContent();
         incrementLine();      // <identifier> subroutineName </identifier>
@@ -517,7 +517,7 @@ class CodeGenerationEngine {
             compileExpression();
             nP++;
             
-            if (isToken() && getTokenContent() == ",") incrementLine();
+            if (isToken() && getTokenContent() == ",") incrementLine();     // <symbol> , </symbol>
         }
         
         incrementLine();              // </expressionList>
@@ -677,7 +677,7 @@ class CodeGenerationEngine {
     }
 };
 
-class AnalysisEngine {
+class AnalysisEngine {              // process T.xml into .xml
     private:
     vector<string> tokens;
     vector<string>::iterator currentToken;
@@ -749,11 +749,15 @@ class AnalysisEngine {
         currentToken++;
     }
 
-    void writeError(string error) {
+    void writeError(string type) {
         //cout << "Failed at " << "'" <<  *currentToken << "'" << endl << "'" << getTokenType() << "'" << endl << "'" <<  getTokenContent()  << "'" << endl << endl;
         //cout << xmlDump.str() << endl;
         ofstream err(errorFile);
-        err << error << endl;
+        if (getTokenType() != type) {
+            err << "ERROR: Expecting <" + type + "> but " + getTokenContent() << endl;
+        } else {
+            err << "ERROR: " << getTokenContent() << endl;
+        }
         err.close();
         exit(EXIT_FAILURE);
     }
@@ -790,19 +794,19 @@ class AnalysisEngine {
             incrementSpaces();
             dump();
         } else {
-            writeError("Syntax error: 'class' expected.");
+            writeError("keyword");
         }
 
         if (getTokenType() == "identifier") {
             dump();
         } else {
-            writeError("Syntax error: identifier expected.");
+            writeError("identifier");
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == "{") {
             dump();
         } else {
-            writeError("Syntax error: '{' expected.");
+            writeError("symbol");
         }
         
         while (getTokenType() == "keyword" && (getTokenContent() == "static" || getTokenContent() == "field")) {
@@ -816,7 +820,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "}") {
             dump();
         } else {
-            writeError("Syntax error: '}' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -831,13 +835,13 @@ class AnalysisEngine {
         if (isType()) {
             dump();
         } else {
-            writeError("Syntax error: type expected.");
+            writeError("keyword");
         }
 
         if (getTokenType() == "identifier") {
             dump();
         } else {
-            writeError("Syntax error: identifier expected.");
+            writeError("identifier");
         }
 
         while (getTokenType() == "symbol" && getTokenContent() == ",") {
@@ -845,14 +849,14 @@ class AnalysisEngine {
             if (getTokenType() == "identifier") {
                 dump();
             } else {
-                writeError("Syntax error: identifier expected.");
+                writeError("identifier");
             }
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == ";") {
             dump();
         } else {
-            writeError("Syntax error: ';' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -866,25 +870,25 @@ class AnalysisEngine {
         if (isFunctionType()) {
             dump();
         } else {
-            writeError("Syntax error: function type expected.");
+            writeError("keyword");
         }
 
         if ((getTokenType() == "keyword" && getTokenContent() == "void") || isType()) {
             dump();
         } else {
-            writeError("Syntax error: return type expected.");
+            writeError("keyword");
         }
 
         if (getTokenType() == "identifier") {
             dump();
         } else {
-            writeError("Syntax error: identifier expected.");
+            writeError("identifier");
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == "(") {
             dump();
         } else {
-            writeError("Syntax error: '(' expected.");
+            writeError("symbol");
         }
 
         compileParameterList();
@@ -892,7 +896,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ")") {
             dump();
         } else {
-            writeError("Syntax error: ')' expected.");
+            writeError("symbol");
         }
 
         dump("<subroutineBody>");
@@ -901,7 +905,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "{") {
             dump();
         } else {
-            writeError("Syntax error: '{' expected.");
+            writeError("symbol");
         }
 
         while (getTokenType() == "keyword" && getTokenContent() == "var") {
@@ -912,13 +916,13 @@ class AnalysisEngine {
             if (isType()) {
                 dump();
             } else {
-                writeError("Syntax error: type expected.");
+                writeError("keyword");
             }
 
             if (getTokenType() == "identifier") {
                 dump();
             } else {
-                writeError("Syntax error: identifier expected.");
+                writeError("identifier");
             }
 
             while (getTokenType() == "symbol" && getTokenContent() == ",") {
@@ -926,14 +930,14 @@ class AnalysisEngine {
                 if (getTokenType() == "identifier") {
                     dump();
                 } else {
-                    writeError("Syntax error: identifier expected.");
+                    writeError("identifier");
                 }
             }
 
             if (getTokenType() == "symbol" && getTokenContent() == ";") {
                 dump();
             } else {
-                writeError("Syntax error: ';' expected.");
+                writeError("symbol");
             }
 
             decrementSpaces();
@@ -945,7 +949,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "}") {
             dump();
         } else {
-            writeError("Syntax error: '}' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -965,7 +969,7 @@ class AnalysisEngine {
             if (getTokenType() == "identifier") {
                 dump();
             } else {
-                writeError("Syntax error: identifier expected.");
+                writeError("identifier");
             }
 
             while (getTokenType() == "symbol" && getTokenContent() == ",") {
@@ -974,17 +978,17 @@ class AnalysisEngine {
                 if (isType()) {
                     dump();
                 } else {
-                    writeError("Syntax error: type expected.");
+                    writeError("keyword");
                 }
                 
                 if (getTokenType() == "identifier") {
                     dump();
                 } else {
-                    writeError("Syntax error: identifier expected.");
+                    writeError("identifier");
                 }
             }
         } else if (getTokenType() != "symbol" || getTokenContent() != ")") {
-            writeError("Synax error: parameterList expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -1008,7 +1012,7 @@ class AnalysisEngine {
             } else if (content == "return") {
                 compileReturnStatement();
             } else {
-                writeError("Syntax error: statement expected.");
+                writeError("keyword");
             }
         }
 
@@ -1024,7 +1028,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "(") {
             dump();
         } else {
-            writeError("Syntax error: '(' expected.");
+            writeError("symbol");
         }
 
         compileExpression();
@@ -1032,13 +1036,13 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ")") {
             dump();
         } else {
-            writeError("Syntax error: ')' expected.");
+            writeError("symbol");
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == "{") {
             dump();
         } else {
-            writeError("Syntax error: '{' expected.");
+            writeError("symbol");
         }
 
         compileStatements();
@@ -1046,7 +1050,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "}") {
             dump();
         } else {
-            writeError("Syntax error: '}' expected.");
+            writeError("symbol");
         }
 
         if (getTokenType() == "keyword" && getTokenContent() == "else") {
@@ -1055,7 +1059,7 @@ class AnalysisEngine {
             if (getTokenType() == "symbol" && getTokenContent() == "{") {
                 dump();
             } else {
-                writeError("Syntax error: '{' expected.");
+                writeError("symbol");
             }
 
             compileStatements();
@@ -1063,7 +1067,7 @@ class AnalysisEngine {
             if (getTokenType() == "symbol" && getTokenContent() == "}") {
                 dump();
             } else {
-                writeError("Syntax error: '}' expected.");
+                writeError("symbol");
             }
         }
 
@@ -1094,7 +1098,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ";") {
             dump();
         } else {
-            writeError("Syntax error: ';' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -1109,7 +1113,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "(") {
             dump();
         } else {
-            writeError("Syntax error: '(' expected.");
+            writeError("symbol");
         }
 
         compileExpression();
@@ -1117,13 +1121,13 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ")") {
             dump();
         } else {
-            writeError("Syntax error: ')' expected.");
+            writeError("symbol");
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == "{") {
             dump();
         } else {
-            writeError("Syntax error: '{' expected.");
+            writeError("symbol");
         }
 
         compileStatements();
@@ -1131,7 +1135,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "}") {
             dump();
         } else {
-            writeError("Syntax error: '}' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -1148,7 +1152,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ";") {
             dump();
         } else {
-            writeError("Syntax error: ';' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -1163,7 +1167,7 @@ class AnalysisEngine {
         if (getTokenType() == "identifier") {
             dump();
         } else {
-            writeError("Syntax error: identifier expected.");
+            writeError("identifier");
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == "[") {
@@ -1172,14 +1176,14 @@ class AnalysisEngine {
             if (getTokenType() == "symbol" && getTokenContent() == "]") {
                 dump();
             } else {
-                writeError("Syntax error: ']' expected.");
+                writeError("symbol");
             }
         }
 
         if (getTokenType() == "symbol" && getTokenContent() == "=") {
             dump();
         } else {
-            writeError("Syntax error: '=' expected.");
+            writeError("symbol");
         }
 
         compileExpression();
@@ -1187,7 +1191,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ";") {
             dump();
         } else {
-            writeError("Syntax error: ';' expected.");
+            writeError("symbol");
         }
 
         decrementSpaces();
@@ -1265,7 +1269,7 @@ class AnalysisEngine {
                 if (getTokenType() == "symbol" && getTokenContent() == "]") {
                     dump();
                 } else {
-                    writeError("Syntax error: ']' expected.");
+                    writeError("symbol");
                 }
             } else if (getTokenType() == "symbol" && getTokenContent() == "(") {
                 compileSubroutineCall(true);
@@ -1274,7 +1278,7 @@ class AnalysisEngine {
                 if (getTokenType() == "identifier") {
                     dump();
                 } else {
-                    writeError("Syntax error: identifier expected");
+                    writeError("identifier");
                 }
                 if (getTokenType() == "symbol" && getTokenContent() == "(") {
                     compileSubroutineCall(true);
@@ -1286,13 +1290,13 @@ class AnalysisEngine {
             if (getTokenType() == "symbol" && getTokenContent() == ")") {
                 dump();
             } else {
-                writeError("Syntax error: ')' expected.");
+                writeError("symbol");
             }
         } else if (isUnaryOp()){
             dump();
             compileTerm();
         } else {
-            writeError("Syntax error: term expected.");
+            writeError("identifier");
         }
 
         decrementSpaces();
@@ -1306,7 +1310,7 @@ class AnalysisEngine {
             if (getTokenType() == "identifier") {
                 dump();
             } else {
-                writeError("Syntax error: identifier expected.");
+                writeError("identifier");
             }
         
 
@@ -1315,7 +1319,7 @@ class AnalysisEngine {
                 if (getTokenType() == "identifier") {
                     dump();
                 } else {
-                    writeError("Syntax error: identifier expected.");
+                    writeError("identifier");
                 }
             }
         }
@@ -1323,7 +1327,7 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == "(") {
             dump();
         } else {
-            writeError("Syntax error: '(' expected.");
+            writeError("symbol");
         }
 
         compileExpressionList();
@@ -1331,14 +1335,28 @@ class AnalysisEngine {
         if (getTokenType() == "symbol" && getTokenContent() == ")") {
             dump();
         } else {
-            writeError("Syntax error: ')' expected.");
+            writeError("symbol");
         }
     }
 
 };
 
-class TokenizationEngine {
+class TokenizationEngine {          // process .jack into T.xml
+    string errorFile;
+
+    void writeError(string error) {
+        ofstream err(errorFile);
+        err << error << endl;
+        err.close();
+        exit(EXIT_FAILURE);
+    }
+
+    
     public:
+    TokenizationEngine(string errPath) {
+        errorFile = errPath;
+    }
+
     stringstream padSymbols(string original) {
         stringstream processed;
         bool inString = false;
@@ -1428,7 +1446,11 @@ class TokenizationEngine {
         } else if (atomic[0] == '"' && atomic.back() == '"') {
             return "<stringConstant> " + atomic.substr(1, atomic.length() - 2) + " </stringConstant>\n";
         } else if (atomic[0] >= '0' && atomic[0] <= '9') {
-            return "<integerConstant> " + atomic + " </integerConstant>\n";
+            if (all_of(atomic.begin(), atomic.end(), [](char c){return (c >= '0' && c <= '9');})) {
+                return "<integerConstant> " + atomic + " </integerConstant>\n";
+            } else {
+                writeError("Lexical error: invalid token '" + atomic + "'");
+            }
         } else if (atomic == "class" || atomic == "constructor" || atomic == "function" || 
             atomic == "method" || atomic == "field" || atomic == "static" || atomic == "var" ||
             atomic == "int" || atomic == "char" || atomic == "boolean" || atomic == "void" || atomic == "true" ||
@@ -1458,6 +1480,7 @@ int main(int argc, char** argv) {
         }
     } 
 
+    // process every file individually
     for(int fileNumber = 2; fileNumber < argc; fileNumber++) {
         stringstream tokenized;
         tokenized << "<tokens>\n";
@@ -1488,11 +1511,14 @@ int main(int argc, char** argv) {
         if (jackFileContents.back() == '\n' || jackFileContents.back() == '\r') jackFileContents.erase(jackFileContents.end() - 1);
         if (jackFileContents.back() == '\n' || jackFileContents.back() == '\r') jackFileContents.erase(jackFileContents.end() - 1);
 
-        TokenizationEngine te;
+
+        // convert .jack to T.xml
+        TokenizationEngine te(classname + ".err");
         stringstream jackStream = te.padSymbols(jackFileContents);
         string atomic, word = "";
         bool inString = false;
 
+        // create tokens properly: attempt 3
         for (char c: jackStream.str()) {
             if (inString) {
                 if (c == '"') {
@@ -1503,6 +1529,10 @@ int main(int argc, char** argv) {
                 }
             } else {
                 if (c == '"') {
+                    if (word != "") {
+                        tokenized << te.createToken(word);
+                    }
+                    word = "";
                     word += c;
                     inString = true;
                 } else if (c == ' ' || c == '\n') {
@@ -1518,14 +1548,17 @@ int main(int argc, char** argv) {
 
         tokenized << "</tokens>\n";
 
+        // save T.xml
         ofstream outFile(classname + "T.xml");
         outFile << tokenized.str();
         outFile.close();
 
+        // convert T.xml into .xml and save
         AnalysisEngine ae(tokenized, classname + ".xml", classname + ".err");
         string xmlDump = ae.getXMLDump();
         stringstream xmlStream(xmlDump);  
 
+        // convert .xml to .vm and save
         CodeGenerationEngine cge(xmlStream, classname + ".vm", classname + ".err");    
     }
     

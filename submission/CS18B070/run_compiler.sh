@@ -9,7 +9,7 @@
 # No compilation command is needed in case of Python, hence leave it blank.
 
 ###########FILL YOUR COMMAND HERE############
-g++ compiler.cpp -o jack
+g++ compile.cpp -o jack
 #############################################
 
 
